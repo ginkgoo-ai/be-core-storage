@@ -61,6 +61,10 @@
     </repositories>
 
     <distributionManagement>
+        <repository>
+            <id>github</id>
+            <url>https://maven.pkg.github.com/ginkgoo-ai/ginkgoo-share-packages</url>
+        </repository>
         <snapshotRepository>
             <id>github</id>
             <url>https://maven.pkg.github.com/ginkgoo-ai/ginkgoo-share-packages</url>
