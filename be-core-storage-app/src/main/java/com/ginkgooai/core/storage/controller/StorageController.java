@@ -2,6 +2,7 @@ package com.ginkgooai.core.storage.controller;
 
 import com.ginkgooai.core.storage.service.StorageService;
 import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -14,10 +15,10 @@ import java.net.URL;
 
 @RestController
 @RequestMapping("/storage/objects")
+@RequiredArgsConstructor
 public class StorageController {
 
-    @Resource
-    private StorageService storageService;
+    private final StorageService storageService;
 
     @PostMapping
     public String upload(@RequestPart MultipartFile file) {

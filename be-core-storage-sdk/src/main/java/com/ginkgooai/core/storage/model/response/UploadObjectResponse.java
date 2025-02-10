@@ -1,4 +1,4 @@
-package com.ginkgooai.model.response;
+package com.ginkgooai.core.storage.model.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
