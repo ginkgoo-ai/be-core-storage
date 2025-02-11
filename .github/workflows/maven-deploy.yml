@@ -28,10 +28,10 @@ jobs:
           echo "-----------------Maven version-----------------"
           mvn -v
           echo "-----------------------------------------------"
-          mvn -B clean deploy -pl ${service_name}-sdk -Dmaven.test.skip=true -s settings.xml
+          mvn -B clean deploy -pl ${service_name}-sdk -Dmaven.test.skip=true
         env:
           service_name: "be-core-storage"
-          GITHUB_USER: ${{ github.actor}}
+          # GITHUB_USER: ${{ github.actor}}
           GITHUB_TOKEN: ${{ secrets.GH_PACKAGES_PAT }}
 
 
