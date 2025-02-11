@@ -48,7 +48,7 @@
     <repositories>
         <repository>
             <id>github</id>
-            <url>https://maven.pkg.github.com/ginkgoo-ai/ginkgoo-share-packages</url>
+            <url>https://maven.pkg.github.com/ginkgoo-ai</url>
             <releases>
                 <enabled>false</enabled>
             </releases>
@@ -63,11 +63,11 @@
     <distributionManagement>
         <repository>
             <id>github</id>
-            <url>https://maven.pkg.github.com/ginkgoo-ai/ginkgoo-share-packages</url>
+            <url>https://maven.pkg.github.com/ginkgoo-ai</url>
         </repository>
         <snapshotRepository>
             <id>github</id>
-            <url>https://maven.pkg.github.com/ginkgoo-ai/ginkgoo-share-packages</url>
+            <url>https://maven.pkg.github.com/ginkgoo-ai</url>
         </snapshotRepository>
 
     </distributionManagement>
