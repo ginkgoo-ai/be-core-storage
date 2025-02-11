@@ -30,10 +30,14 @@ jobs:
           echo "--------------------------------"
           mvn -v
           echo "--------------------------------"
-          mvn --batch-mode deploy -Dmaven.test.skip=true
-          echo "--------------------------------"
+          # mvn --batch-mode deploy -Dmaven.test.skip=true
           # mvn clean deploy -Dmaven.test.skip=true
+
+          mvn -B clean deploy -pl ${service_name}-sdk -Dmaven.test.skip=true
+          mvn -B clean deploy -N -Dmaven.test.skip=true
+          echo "--------------------------------"
         env:
+          service_name: "be-core-storage"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 
