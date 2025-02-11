@@ -1,17 +1,12 @@
-package com.ginkgooai.core.storage.config;
+package com.ginkgooai.config;
 
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
-import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import com.amazonaws.HttpMethod;
-
-import java.net.URL;
-import java.util.Date;
 
 /**
  * @author: david

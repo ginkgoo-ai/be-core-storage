@@ -1,4 +1,4 @@
-package com.ginkgooai.core.storage.service;
+package com.ginkgooai.service;
 
 import org.springframework.web.multipart.MultipartFile;
 

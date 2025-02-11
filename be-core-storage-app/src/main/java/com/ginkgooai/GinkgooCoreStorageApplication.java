@@ -1,7 +1,8 @@
-package com.ginkgooai.core.storage;
+package com.ginkgooai;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.cloud.openfeign.EnableFeignClients;
 
 /**
  * @author: david
@@ -9,6 +10,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  */
 
 @SpringBootApplication
+@EnableFeignClients
 public class GinkgooCoreStorageApplication {
     public static void main(String[] args) {
         SpringApplication.run(GinkgooCoreStorageApplication.class, args);

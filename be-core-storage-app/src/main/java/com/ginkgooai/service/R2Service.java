@@ -1,4 +1,4 @@
-package com.ginkgooai.core.storage.service;
+package com.ginkgooai.service;
 
 import com.amazonaws.HttpMethod;
 import com.amazonaws.services.s3.AmazonS3;
@@ -41,7 +41,7 @@ public class R2Service implements StorageService {
             ObjectMetadata metadata = new ObjectMetadata();
             metadata.setContentLength(file.getSize());
             s3Client.putObject(new PutObjectRequest(bucketName, file.getOriginalFilename(), file.getInputStream(), metadata));
-            return file.getOriginalFilename();
+            return generatePresignedUrl(file.getOriginalFilename()).getFile();
         } catch (Exception e) {
             log.error(e.getMessage(), e);
             throw new RuntimeException("Error uploading file to R2", e);

@@ -10,7 +10,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.ginkgooai</groupId>
-    <artifactId>core-storage</artifactId>
+    <artifactId>be-core-storage</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>core-storage</name>
     <description>ginkgooai-core-storage</description>
