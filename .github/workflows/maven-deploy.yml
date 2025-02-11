@@ -20,24 +20,22 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '23'
-          # cache: maven
-          # server-id: github
+          cache: maven
+          server-id: github
  
       - name: Build and Deploy
         run: |
           pwd
           ls -al
-          echo "--------------------------------"
+          echo "-----------------Maven version-----------------"
           mvn -v
-          echo "--------------------------------"
-          # mvn --batch-mode deploy -Dmaven.test.skip=true
-          # mvn clean deploy -Dmaven.test.skip=true
-
-          mvn -B clean deploy -pl ${service_name}-sdk -Dmaven.test.skip=true
-          mvn -B clean deploy -N -Dmaven.test.skip=true
-          echo "--------------------------------"
+          echo "-----------------------------------------------"
+          mvn -B clean deploy -pl ${service_name}-sdk -Dmaven.test.skip=true -s settings.xml
+          # mvn -B clean deploy -N -Dmaven.test.skip=true
+          echo "-----------------------------------------------"
         env:
           service_name: "be-core-storage"
+          GITHUB_USER: ${{ github.actor}}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 
