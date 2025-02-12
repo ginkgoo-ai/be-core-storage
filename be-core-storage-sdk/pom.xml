@@ -10,7 +10,7 @@
     </parent>
 
     <artifactId>be-core-storage-sdk</artifactId>
-    <version>0.0.2-SNAPSHOT</version>
+    <version>0.0.1-SNAPSHOT</version>
     <name>be-core-storage-sdk</name>
     <description>be-core-storage-sdk</description>
     <packaging>jar</packaging>
