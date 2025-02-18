@@ -71,7 +71,6 @@
         </snapshotRepository>
 
     </distributionManagement>
-
     <pluginRepositories>
         <pluginRepository>
             <id>github</id>

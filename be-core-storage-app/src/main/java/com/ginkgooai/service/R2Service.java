@@ -5,6 +5,8 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
+import com.ginkgooai.core.common.exception.GinkgooRunTimeException;
+import com.ginkgooai.core.common.exception.enums.CustomErrorEnum;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -44,7 +46,7 @@ public class R2Service implements StorageService {
             return generatePresignedUrl(file.getOriginalFilename()).getFile();
         } catch (Exception e) {
             log.error(e.getMessage(), e);
-            throw new RuntimeException("Error uploading file to R2", e);
+            throw new GinkgooRunTimeException(CustomErrorEnum.UPLOADING_FILE_EXCEPTION);
         }
     }
 
@@ -53,13 +55,13 @@ public class R2Service implements StorageService {
     @Override
     public URL generatePresignedUrl(String fileName) {
         try {
-            Date expiration = new Date(System.currentTimeMillis() + Long.parseLong(expirationTime));  // 1 小时有效
+            Date expiration = new Date(System.currentTimeMillis() + Long.parseLong(expirationTime));
             GeneratePresignedUrlRequest request = new GeneratePresignedUrlRequest(bucketName, fileName)
                     .withMethod(HttpMethod.GET)
                     .withExpiration(expiration);
             return s3Client.generatePresignedUrl(request);
         } catch (Exception e) {
-            throw new RuntimeException("Error generating presigned URL", e);
+            throw new GinkgooRunTimeException(CustomErrorEnum.OBTAINING_DOWNLOAD_LINK_EXCEPTION);
         }
     }
 }
