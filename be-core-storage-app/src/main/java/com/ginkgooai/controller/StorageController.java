@@ -2,6 +2,7 @@ package com.ginkgooai.controller;
 
 import com.ginkgooai.service.StorageService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -25,8 +26,8 @@ public class StorageController {
      * @return A pre-signed URL that can be used to access the file.
      */
     @PostMapping
-    public String upload(@RequestPart MultipartFile file) {
-        return storageService.uploadFile(file);
+    public ResponseEntity<String> upload(@RequestPart MultipartFile file) {
+        return ResponseEntity.ok(storageService.uploadFile(file));
     }
 
 
@@ -37,8 +38,8 @@ public class StorageController {
      * @return A pre-signed URL that can be used to access the file.
      */
     @GetMapping("/{fileName}")
-    public URL generatePresignedUrl(@PathVariable String fileName){
-        return storageService.generatePresignedUrl(fileName);
+    public ResponseEntity<URL> generatePresignedUrl(@PathVariable String fileName){
+        return ResponseEntity.ok(storageService.generatePresignedUrl(fileName));
     }
 
 }

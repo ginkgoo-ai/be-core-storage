@@ -3,6 +3,7 @@ package com.ginkgooai.service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.net.URL;
+import java.util.Set;
 
 /**
  * @author: david
@@ -11,6 +12,12 @@ import java.net.URL;
 
 
 public interface StorageService {
+
+    Long MAX_FILE_SIZE = 100 * 1024 * 1024L;
+    Set<String> ALLOWED_FILE_TYPES = Set.of("image/jpeg", "image/png", "image/gif");
+
+
+
     String uploadFile(MultipartFile file);
 
     URL generatePresignedUrl(String fileName);
