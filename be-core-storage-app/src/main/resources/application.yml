@@ -1,0 +1,25 @@
+SERVER_PORT : 7020
+
+server:
+  port: ${SERVER_PORT}
+
+spring:
+  application:
+    name: be-core-storage-app
+
+
+#tracing
+management:
+  tracing:
+    enabled : true
+    sampling:
+      probability: 1.0
+
+
+springdoc:
+  api-docs:
+    enabled: true
+    path: /api/storage/v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /api/storage/swagger-ui.html

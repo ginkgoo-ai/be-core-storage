@@ -2,12 +2,11 @@ package com.ginkgooai.api;
 
 import com.ginkgooai.core.common.config.CustomErrorDecoder;
 import com.ginkgooai.core.common.config.FeignMultipartConfig;
+import com.ginkgooai.model.request.PresignedUrlRequest;
 import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.net.URL;
@@ -22,9 +21,12 @@ import java.net.URL;
 @Component
 public interface StorageApi {
 
-    @PostMapping("/storage/objects")
-    String upload(@RequestPart MultipartFile file);
+    @PostMapping("/files")
+    ResponseEntity<String> upload(@RequestPart MultipartFile file);
 
-    @GetMapping("/{fileName}")
-    URL generatePresignedUrl(@PathVariable String fileName);
+    @GetMapping("/files/{fileName}/presigned-url")
+    ResponseEntity<URL> generatePresignedUrl(@PathVariable String fileName);
+
+    @PostMapping("/files/presigned-url")
+    ResponseEntity<URL> generatePresignedUrlByOriginalUrl(@RequestBody PresignedUrlRequest request);
 }

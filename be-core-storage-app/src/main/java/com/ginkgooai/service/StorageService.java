@@ -1,5 +1,6 @@
 package com.ginkgooai.service;
 
+import com.ginkgooai.model.request.PresignedUrlRequest;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.net.URL;
@@ -21,4 +22,6 @@ public interface StorageService {
     String uploadFile(MultipartFile file);
 
     URL generatePresignedUrl(String fileName);
+
+    URL generatePresignedUrlByOrigninalUrl(PresignedUrlRequest request);
 }

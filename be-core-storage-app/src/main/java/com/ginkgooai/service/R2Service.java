@@ -7,6 +7,7 @@ import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.ginkgooai.core.common.exception.GinkgooRunTimeException;
 import com.ginkgooai.core.common.exception.enums.CustomErrorEnum;
+import com.ginkgooai.model.request.PresignedUrlRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -63,5 +64,30 @@ public class R2Service implements StorageService {
         } catch (Exception e) {
             throw new GinkgooRunTimeException(CustomErrorEnum.OBTAINING_DOWNLOAD_LINK_EXCEPTION);
         }
+    }
+
+    // 获取文件的预签名 URL
+    @Override
+    public URL generatePresignedUrlByOrigninalUrl(PresignedUrlRequest request) {
+        try {
+            String filePath = extractFilePathFromUrl(request.getOriginalUrl());
+
+            Date expiration = new Date(System.currentTimeMillis() + Long.parseLong(expirationTime));
+            GeneratePresignedUrlRequest generatePresignedUrlRequest = new GeneratePresignedUrlRequest(bucketName, filePath)
+                    .withMethod(HttpMethod.GET)  // 使用 GET 方法读取文件
+                    .withExpiration(expiration);
+            return s3Client.generatePresignedUrl(generatePresignedUrlRequest);
+        } catch (Exception e) {
+            throw new GinkgooRunTimeException(CustomErrorEnum.OBTAINING_DOWNLOAD_LINK_EXCEPTION);
+        }
+    }
+
+    private String extractFilePathFromUrl(String fileUrl) {
+        // 从 URL 中提取文件路径（这里假设 URL 中的路径部分为文件路径）
+        String[] urlParts = fileUrl.split("/", 4);
+        if (urlParts.length > 3) {
+            return urlParts[3];  // 返回文件路径
+        }
+        throw new IllegalArgumentException("Invalid file URL");
     }
 }
