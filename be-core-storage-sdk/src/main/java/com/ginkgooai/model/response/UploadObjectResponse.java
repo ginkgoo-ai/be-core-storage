@@ -18,6 +18,12 @@ public class UploadObjectResponse {
 
     private String url;
 
-    private String downloadUrl;
+    private String name;
+
+    private String type;
+
+    private Long size;
+
+    private Long cloudName;
 
 }

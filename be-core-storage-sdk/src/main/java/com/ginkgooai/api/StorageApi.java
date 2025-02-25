@@ -3,6 +3,7 @@ package com.ginkgooai.api;
 import com.ginkgooai.core.common.config.CustomErrorDecoder;
 import com.ginkgooai.core.common.config.FeignMultipartConfig;
 import com.ginkgooai.model.request.PresignedUrlRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
@@ -29,4 +30,7 @@ public interface StorageApi {
 
     @PostMapping("/files/presigned-url")
     ResponseEntity<URL> generatePresignedUrlByOriginalUrl(@RequestBody PresignedUrlRequest request);
+
+    @PostMapping("/{fileId}")
+    void downloadFile(@PathVariable String fileId, HttpServletResponse response);
 }
