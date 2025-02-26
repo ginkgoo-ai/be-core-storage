@@ -24,7 +24,7 @@ import java.net.URL;
  */
 @Tag(name = "File Storage", description = "File storage management")  // Add category tag
 @RestController
-@RequestMapping("/storage/files")
+@RequestMapping("/files")
 @RequiredArgsConstructor
 public class StorageController {
 
