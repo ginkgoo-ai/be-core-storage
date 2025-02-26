@@ -1,4 +1,6 @@
 SERVER_PORT : 8080
+core-gateway-uri: ${SERVICE_SCHEME}://${CORE_GATEWAY_HOST}:${CORE_GATEWAY_PORT}
+core-gateway-public-uri: ${APP_SCHEME}://${CORE_GATEWAY_PUBLIC_HOST}:${CORE_GATEWAY_PUBLIC_PORT}
 
 server:
   port: ${SERVER_PORT}
