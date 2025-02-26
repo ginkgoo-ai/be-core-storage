@@ -50,12 +50,8 @@ public class StorageController {
                     )
             }
     )
-    @PostMapping
+    @PostMapping(consumes = "multipart/form-data")
     public ResponseEntity<CloudFile> upload(
-            @Parameter(
-                    description = "The file to be uploaded",
-                    required = true,
-                    content = @Content(mediaType = "multipart/form-data"))
             @RequestPart MultipartFile file) {
         return ResponseEntity.status(201).body(storageService.uploadFile(file));
     }
