@@ -16,7 +16,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.net.URL;
 
 /**
@@ -25,7 +24,7 @@ import java.net.URL;
  */
 @Tag(name = "File Storage", description = "File storage management")  // Add category tag
 @RestController
-@RequestMapping("/files")
+@RequestMapping("/storage/files")
 @RequiredArgsConstructor
 public class StorageController {
 
@@ -132,6 +131,37 @@ public class StorageController {
         return ResponseEntity.ok(storageService.generatePresignedUrlByOrigninalUrl(request));
     }
 
+
+    /**
+     * Downloads a file by its unique identifier and streams it directly to the HTTP response output.
+     *
+     * <p>This method retrieves the file content from the storage service using the provided {@code fileId}
+     * and writes the binary data to the response output stream. The client will receive the file as a
+     * downloadable attachment with proper content headers.</p>
+     *
+     * @param fileId   The unique identifier of the file to download (e.g., UUID or storage key).
+     * @param response The HTTP servlet response object to write the file content to.
+     * @throws IOException If an I/O error occurs during file streaming or if the file is not found.
+     */
+    @Operation(
+            summary = "Download file by ID",
+            description = "Streams the file content directly to the client as a downloadable attachment.",
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "File successfully streamed to the client",
+                            content = @Content(mediaType = "application/octet-stream")
+                    ),
+                    @ApiResponse(
+                            responseCode = "404",
+                            description = "File not found with the provided ID"
+                    ),
+                    @ApiResponse(
+                            responseCode = "500",
+                            description = "Internal server error during file streaming"
+                    )
+            }
+    )
     @PostMapping("/{fileId}")
     public void downloadFile(@PathVariable String fileId, HttpServletResponse response) throws IOException {
         storageService.downloadFile(fileId, response.getOutputStream());
