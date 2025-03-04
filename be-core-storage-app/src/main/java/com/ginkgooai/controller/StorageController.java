@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -23,6 +24,7 @@ import java.net.URL;
  * @author: david
  * @date: 20:48 2025/2/9
  */
+@Slf4j
 @Tag(name = "File Storage", description = "File storage management")  // Add category tag
 @RestController
 @RequestMapping("/files")

@@ -9,6 +9,7 @@ import java.io.FileNotFoundException;
 import java.io.OutputStream;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.file.Path;
 import java.util.Set;
 import java.util.UUID;
 
@@ -21,20 +22,10 @@ import java.util.UUID;
 public interface StorageService {
 
     Long MAX_FILE_SIZE = 100 * 1024 * 1024L;
+
     Set<String> ALLOWED_FILE_TYPES = Set.of("image/jpeg", "image/png", "image/gif");
 
-
-
-    CloudFile uploadFile(MultipartFile file);
-
-    URL generatePresignedUrl(String fileName);
-
-    String generateSignedUrl(String fileId) throws FileNotFoundException, URISyntaxException;
-
-    URL generatePresignedUrlByOrigninalUrl(PresignedUrlRequest request);
-
     static String generateUniqueFileName(String originalFileName) {
-        // 提取文件后缀（如 ".jpg"）
         String fileExtension = "";
         int dotIndex = originalFileName.lastIndexOf(".");
         if (dotIndex >= 0) {
@@ -44,5 +35,15 @@ public interface StorageService {
         return UUID.randomUUID().toString().replace("-", "") + fileExtension;
     }
 
+    CloudFile uploadFile(MultipartFile file);
+
+    URL generatePresignedUrl(String fileName);
+
+    String generateSignedUrl(String fileId) throws FileNotFoundException, URISyntaxException;
+
+    URL generatePresignedUrlByOrigninalUrl(PresignedUrlRequest request);
+
     void downloadFile(String originUrl, OutputStream out) throws FileNotFoundException;
+
+    CloudFile uploadThumbnailToStorage(Path thumbnailFile, String thumbnailName);
 }
