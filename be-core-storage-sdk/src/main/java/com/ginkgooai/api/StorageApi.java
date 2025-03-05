@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.FileNotFoundException;
 import java.net.URL;
 
 /**
@@ -33,4 +34,7 @@ public interface StorageApi {
 
     @PostMapping("/{fileId}")
     void downloadFile(@PathVariable String fileId, HttpServletResponse response);
+
+    @GetMapping("/{fileId}/private-url")
+    String getPrivateUrl(@PathVariable String fileId) throws FileNotFoundException;
 }
