@@ -11,6 +11,12 @@ RUN mvn clean install -X -U -s settings.xml && \
 
 FROM openjdk:23-jdk-slim
 WORKDIR /app
+
+RUN apt-get update && \
+    apt-get install -y ffmpeg && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 COPY --from=builder /app/be-core-storage-app/target/*.jar app.jar
 COPY integration/grafana-opentelemetry-java-v2.12.0.jar ./grafana-opentelemetry-java-v2.12.0.jar
 
