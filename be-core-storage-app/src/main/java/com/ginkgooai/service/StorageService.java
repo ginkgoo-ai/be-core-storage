@@ -1,8 +1,11 @@
 package com.ginkgooai.service;
 
 import com.ginkgooai.domain.CloudFile;
+import com.ginkgooai.dto.CloudFileResponse;
 import com.ginkgooai.model.request.PresignedUrlRequest;
 import com.ginkgooai.model.response.UploadObjectResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.FileNotFoundException;
@@ -25,7 +28,7 @@ public interface StorageService {
 
 
 
-    CloudFile uploadFile(MultipartFile file);
+    CloudFileResponse uploadFile(MultipartFile file);
 
     URL generatePresignedUrl(String fileName);
 
@@ -45,4 +48,8 @@ public interface StorageService {
     }
 
     void downloadFile(String originUrl, OutputStream out) throws FileNotFoundException;
+
+    void downloadBlob(HttpServletRequest request, HttpServletResponse response);
+
+    String getPrivateUrl(String fileId) throws FileNotFoundException;
 }

@@ -1,6 +1,7 @@
 package com.ginkgooai.controller;
 
 import com.ginkgooai.domain.CloudFile;
+import com.ginkgooai.dto.CloudFileResponse;
 import com.ginkgooai.model.request.PresignedUrlRequest;
 import com.ginkgooai.service.StorageService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -9,6 +10,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
@@ -16,6 +18,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URL;
 
@@ -52,7 +55,7 @@ public class StorageController {
             }
     )
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<CloudFile> upload(
+    public ResponseEntity<CloudFileResponse> upload(
             @RequestPart(name = "file") MultipartFile file) {
         return ResponseEntity.status(201).body(storageService.uploadFile(file));
     }
@@ -162,6 +165,16 @@ public class StorageController {
     @PostMapping("/{fileId}")
     public void downloadFile(@PathVariable String fileId, HttpServletResponse response) throws IOException {
         storageService.downloadFile(fileId, response.getOutputStream());
+    }
+
+    @GetMapping("/{fileId}/private-url")
+    public String getPrivateUrl(@PathVariable String fileId) throws FileNotFoundException {
+        return storageService.getPrivateUrl(fileId);
+    }
+
+    @GetMapping("/blob/**")
+    public void blob(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        storageService.downloadBlob(request, response);
     }
 
 }
