@@ -78,9 +78,21 @@
         </dependency>
 
         <dependency>
-            <groupId>net.bramp.ffmpeg</groupId>
+            <groupId>org.bytedeco</groupId>
             <artifactId>ffmpeg</artifactId>
-            <version>0.8.0</version>
+            <version>7.1-1.5.11</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.bytedeco</groupId>
+            <artifactId>ffmpeg-platform</artifactId>
+            <version>7.1-1.5.11</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.bytedeco</groupId>
+            <artifactId>javacv</artifactId>
+            <version>1.5.11</version>
         </dependency>
 
         <!-- S3 -->

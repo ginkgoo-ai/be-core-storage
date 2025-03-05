@@ -1,116 +1,84 @@
 package com.ginkgooai.utils;
 
-import com.ginkgooai.domain.CloudFile;
-import com.ginkgooai.domain.VideoMetadata;
-import com.ginkgooai.service.StorageService;
 import lombok.extern.slf4j.Slf4j;
-import net.bramp.ffmpeg.FFprobe;
-import net.bramp.ffmpeg.probe.FFmpegProbeResult;
-import net.bramp.ffmpeg.probe.FFmpegStream;
-import org.springframework.stereotype.Component;
-import org.springframework.web.multipart.MultipartFile;
 
+import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
-@Component
 @Slf4j
 public class VideoMetadataExtractor {
 
-    private StorageService storageService;
-
-    public VideoMetadata extractMetadata(MultipartFile videoFile) throws IOException {
-        Path tempFile = Files.createTempFile("video", videoFile.getOriginalFilename());
-        videoFile.transferTo(tempFile.toFile());
-
-        try {
-            FFprobe ffprobe = new FFprobe("G:\\ffmpeg-7.0.2-full_build\\bin\\ffmpeg.exe");
-            FFmpegProbeResult probeResult = ffprobe.probe(tempFile.toString());
-
-            FFmpegStream videoStream = probeResult.getStreams().stream()
-                    .filter(stream -> stream.codec_type == FFmpegStream.CodecType.VIDEO)
-                    .findFirst()
-                    .orElseThrow(() -> new IOException("No video stream found"));
-
-            CloudFile cloudFile = generateThumbnail(videoFile);
-            return VideoMetadata.builder()
-                    .thumbnailFileId(cloudFile.getId())
-                    .thumbnailUrl(cloudFile.getVideoThumbnailUrl())
-                    .duration(Math.round(probeResult.getFormat().duration * 1000))
-                    .resolution(videoStream.width + "x" + videoStream.height)
-                    .size(videoFile.getSize())
-                    .build();
-        } finally {
-            Files.deleteIfExists(tempFile);
-        }
-    }
-
-    public CloudFile generateThumbnail(MultipartFile videoFile) throws IOException {
-        Path tempVideoFile = null;
-        Path tempThumbnailFile = null;
-
-        try {
-            tempVideoFile = Files.createTempFile("video", videoFile.getOriginalFilename());
-            videoFile.transferTo(tempVideoFile.toFile());
-
-            FFprobe ffprobe = new FFprobe();
-            FFmpegProbeResult probeResult = ffprobe.probe(tempVideoFile.toString());
-            double duration = probeResult.getFormat().duration;
-
-            tempThumbnailFile = generateThumbnailAtPosition(tempVideoFile, duration / 2);
-
-            String thumbnailName = generateUniqueThumbnailName(Objects.requireNonNull(videoFile.getOriginalFilename()));
-
-            return storageService.uploadThumbnailToStorage(tempThumbnailFile, thumbnailName);
-
-        } catch (Exception e) {
-            log.error("Failed to generate thumbnail.", e);
-            return null;
-        } finally {
-            // 6. 清理临时文件
-            deleteTempFile(tempVideoFile);
-            deleteTempFile(tempThumbnailFile);
-        }
-    }
-
-    private Path generateThumbnailAtPosition(Path videoPath, double position) throws IOException, InterruptedException {
+    public static Path generateThumbnailAtPosition(File videoFile, double position) throws IOException, InterruptedException {
         Path thumbnailPath = Files.createTempFile("thumbnail", ".jpg");
 
         ProcessBuilder processBuilder = new ProcessBuilder(
                 "ffmpeg",
-                "-i", videoPath.toString(),
+                "-y",
                 "-ss", String.valueOf(position),
+                "-i", videoFile.getAbsolutePath(),
                 "-vframes", "1",
                 "-q:v", "2",
                 thumbnailPath.toString()
         );
 
-        Process process = processBuilder.start();
-        int exitCode = process.waitFor();
+        Process process = processBuilder.redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
+            StringBuilder errorOutput = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                errorOutput.append(line).append("\n");
+            }
+        }
 
+        if (!process.waitFor(10, TimeUnit.SECONDS)) {
+            process.destroy();
+            throw new IOException("FFmpeg执行超时");
+        }
+        int exitCode = process.exitValue();
         if (exitCode != 0) {
-            throw new IOException("FFmpeg thumbnail generation failed");
+            Files.deleteIfExists(thumbnailPath);
+            throw new IOException("FFmpeg错误码：" + exitCode);
         }
 
         return thumbnailPath;
     }
 
-    private String generateUniqueThumbnailName(String originalFileName) {
+
+    public static String generateUniqueThumbnailName(String originalFileName) {
         String extension = "jpg";
         String baseFileName = originalFileName.substring(0, originalFileName.lastIndexOf('.'));
-        return String.format("thumbnails/%s_%s.%s",
+        return String.format("thumbnails-%s_%s.%s",
                 baseFileName,
                 UUID.randomUUID(),
                 extension
         );
     }
 
+    public static double getVideoDuration(File videoFile) throws IOException {
+        String cmd = String.format("ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 %s",
+                videoFile.getAbsolutePath());
+        Process process = Runtime.getRuntime().exec(cmd);
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            return Double.parseDouble(reader.readLine());
+        }
+    }
 
+    public static String getVideoResolution(File videoFile) throws IOException {
+        String cmd = String.format("ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 %s",
+                videoFile.getAbsolutePath());
+        Process process = Runtime.getRuntime().exec(cmd);
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            return reader.readLine().trim();
+        }
+    }
 
-    private void deleteTempFile(Path file) {
+    public static void deleteTempFile(Path file) {
         if (file != null) {
             try {
                 Files.deleteIfExists(file);

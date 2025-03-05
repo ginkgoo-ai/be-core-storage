@@ -17,12 +17,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Date;
 import java.util.Objects;
@@ -50,9 +48,7 @@ public class R2Service implements StorageService {
     private final AmazonS3 s3Client;
 
     private final CloudFileRepository cloudFileRepository;
-
-    private final VideoMetadataExtractor videoMetadataExtractor;
-
+    
     // 上传文件
     @Override
     public CloudFile uploadFile(MultipartFile file) {
@@ -62,10 +58,11 @@ public class R2Service implements StorageService {
             String storagePath = String.format("%s/%s/%s", endpoints, bucketName, storageName);
             ObjectMetadata metadata = new ObjectMetadata();
             metadata.setContentLength(file.getSize());
+
+
+            CloudFile cloudFile = CloudFile.fromFile(file, bucketName, storageName, storagePath , isVideoFile(file.getContentType()) ? extractMetadata(file) : null);
             s3Client.putObject(new PutObjectRequest(bucketName, storageName, file.getInputStream(), metadata));
             log.info("uploadFile path : {}", storagePath);
-
-            CloudFile cloudFile = CloudFile.fromFile(file, bucketName, storageName, storagePath , isVideoFile(file.getContentType()) ? videoMetadataExtractor.extractMetadata(file) : null);
 
             return cloudFileRepository.save(cloudFile);
 
@@ -159,12 +156,58 @@ public class R2Service implements StorageService {
                 file
         ));
 
-
-        return CloudFile.fromFile(file, bucketName, thumbnailName, thumbnailPath);
+        return cloudFileRepository.save(CloudFile.fromFile(file, bucketName, thumbnailName, thumbnailPath));
     }
 
 
     private boolean isVideoFile(String contentType) {
         return contentType != null && contentType.startsWith("video/");
+    }
+
+
+    public VideoMetadata extractMetadata(MultipartFile videoFile) throws IOException {
+        Path tempFile = Files.createTempFile("video", videoFile.getOriginalFilename());
+
+        try (InputStream inputStream = videoFile.getInputStream();
+             OutputStream outputStream = new FileOutputStream(tempFile.toFile())) {
+            byte[] buffer = new byte[1024];
+            int bytesRead;
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                outputStream.write(buffer, 0, bytesRead);
+            }
+
+            double videoDuration = VideoMetadataExtractor.getVideoDuration(tempFile.toFile());
+            String videoResolution = VideoMetadataExtractor.getVideoResolution(tempFile.toFile());
+
+            CloudFile cloudFile = generateThumbnail(videoFile, videoDuration);
+            return VideoMetadata.builder()
+                    .thumbnailFileId(cloudFile.getId())
+                    .thumbnailUrl(cloudFile.getStoragePath())
+                    .duration(Math.round(videoDuration * 1000))
+                    .resolution(videoResolution)
+                    .size(videoFile.getSize())
+                    .build();
+        }
+
+    }
+
+    public CloudFile generateThumbnail(MultipartFile file, double videoDuration) throws IOException {
+        Path tempThumbnailFile = null;
+        Path tempFile = Files.createTempFile("video", "temp" + file.getOriginalFilename());
+        file.transferTo(tempFile);
+        try {
+            tempThumbnailFile = VideoMetadataExtractor.generateThumbnailAtPosition(tempFile.toFile() , videoDuration / 2);
+
+            String thumbnailName = VideoMetadataExtractor.generateUniqueThumbnailName(Objects.requireNonNull(file.getOriginalFilename()));
+
+            return uploadThumbnailToStorage(tempThumbnailFile, thumbnailName);
+
+        } catch (Exception e) {
+            log.error("Failed to generate thumbnail.", e);
+            return null;
+        } finally {
+            VideoMetadataExtractor.deleteTempFile(tempThumbnailFile);
+
+        }
     }
 }
