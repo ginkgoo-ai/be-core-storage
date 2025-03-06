@@ -2,6 +2,7 @@ package com.ginkgooai.controller;
 
 import com.ginkgooai.domain.CloudFile;
 import com.ginkgooai.dto.CloudFileResponse;
+import com.ginkgooai.dto.CloudFilesResponse;
 import com.ginkgooai.model.request.PresignedUrlRequest;
 import com.ginkgooai.service.StorageService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -28,7 +29,7 @@ import java.net.URL;
  */
 @Tag(name = "File Storage", description = "File storage management")  // Add category tag
 @RestController
-@RequestMapping("/files")
+@RequestMapping("/v1/files")
 @RequiredArgsConstructor
 public class StorageController {
 
@@ -37,14 +38,14 @@ public class StorageController {
     /**
      * Upload file.
      *
-     * @return A pre-signed URL that can be used to access the file.
+     * @return Cloud file.
      */
     @Operation(
             summary = "Upload file",
             description = "Upload the file to the storage service and return a unique identifier for the file",
             responses = {
                     @ApiResponse(
-                            responseCode = "200",
+                            responseCode = "201",
                             description = "File upload successful, returns file preview URL"
                     ),
 

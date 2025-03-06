@@ -7,6 +7,7 @@ import com.ginkgooai.core.common.exception.GinkgooRunTimeException;
 import com.ginkgooai.core.common.exception.enums.CustomErrorEnum;
 import com.ginkgooai.domain.CloudFile;
 import com.ginkgooai.dto.CloudFileResponse;
+import com.ginkgooai.dto.CloudFilesResponse;
 import com.ginkgooai.model.request.PresignedUrlRequest;
 import com.ginkgooai.repository.CloudFileRepository;
 import jakarta.servlet.http.HttpServletRequest;
@@ -15,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -25,8 +27,11 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * @author: david
@@ -84,6 +89,32 @@ public class R2Service implements StorageService {
             throw new GinkgooRunTimeException(CustomErrorEnum.UPLOADING_FILE_EXCEPTION);
         }
     }
+
+
+    @Override
+    public CloudFilesResponse uploadFiles(MultipartFile[] files) {
+
+        List<CompletableFuture<CloudFileResponse>> futures = new ArrayList<>();
+
+        for (MultipartFile file : files) {
+            if (file.getSize() > MAX_FILE_SIZE) {
+                //todo 文件过大
+            }
+            // 异步处理文件上传
+            futures.add(CompletableFuture.completedFuture(uploadFile(file)));
+        }
+
+        // 收集所有结果
+        List<CloudFileResponse> cloudFiles = futures.stream()
+                .map(CompletableFuture::join)
+                .toList();
+
+        return CloudFilesResponse.builder().cloudFiles(cloudFiles).build();
+
+    }
+
+
+
 
 
     // 获取文件的预签名 URL
@@ -145,6 +176,8 @@ public class R2Service implements StorageService {
 
         return file.getStoragePath().replace(endpoints + "/" + bucketName, domain + "/api/storage/files/blob");
     }
+
+
 
     private String getPrivateUrlByPath(String storagePath) throws FileNotFoundException {
 
