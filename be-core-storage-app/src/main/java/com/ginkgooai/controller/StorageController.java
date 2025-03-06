@@ -38,7 +38,7 @@ public class StorageController {
     /**
      * Upload file.
      *
-     * @return A pre-signed URL that can be used to access the file.
+     * @return Cloud file.
      */
     @Operation(
             summary = "Upload file",
