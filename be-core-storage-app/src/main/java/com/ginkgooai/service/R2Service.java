@@ -6,29 +6,31 @@ import com.amazonaws.services.s3.model.*;
 import com.ginkgooai.core.common.exception.GinkgooRunTimeException;
 import com.ginkgooai.core.common.exception.enums.CustomErrorEnum;
 import com.ginkgooai.domain.CloudFile;
+import com.ginkgooai.domain.VideoMetadata;
 import com.ginkgooai.dto.CloudFileResponse;
 import com.ginkgooai.dto.CloudFilesResponse;
 import com.ginkgooai.model.request.PresignedUrlRequest;
 import com.ginkgooai.repository.CloudFileRepository;
+import com.ginkgooai.utils.VideoMetadataExtractor;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.Objects;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -64,25 +66,17 @@ public class R2Service implements StorageService {
     public CloudFileResponse uploadFile(MultipartFile file) {
 
         try {
-            String storageName = generateUniqueFileName(file.getOriginalFilename());
+            String storageName = generateUniqueFileName(Objects.requireNonNull(file.getOriginalFilename()));
             String storagePath = String.format("%s/%s/%s", endpoints, bucketName, storageName);
             ObjectMetadata metadata = new ObjectMetadata();
             metadata.setContentLength(file.getSize());
+
+
+            CloudFile cloudFile = CloudFile.fromFile(file, bucketName, storageName, storagePath , isVideoFile(file.getContentType()) ? extractMetadata(file) : null);
             s3Client.putObject(new PutObjectRequest(bucketName, storageName, file.getInputStream(), metadata));
             log.info("uploadFile path : {}", storagePath);
 
-            // 保存元数据
-            CloudFile cloudFile = new CloudFile();
-            cloudFile.setOriginalName(file.getOriginalFilename());
-            cloudFile.setStorageName(storageName);
-            cloudFile.setFileType(file.getContentType());
-            cloudFile.setFileSize(file.getSize());
-            cloudFile.setStoragePath(storagePath);
-            // todo
-//            cloudFile.setUploaderId(uploaderId);
-            cloudFile.setBucketName(bucketName);
-
-            return CloudFileResponse.fromCloudFile(cloudFileRepository.save(cloudFile), getPrivateUrlByPath(cloudFile.getStoragePath()));
+            return CloudFileResponse.fromCloudFile(cloudFileRepository.save(cloudFile), getPrivateUrlByPath(cloudFile.getStoragePath()), getPrivateUrlByPath(cloudFile.getVideoThumbnailUrl()));
 
         } catch (Exception e) {
             log.error(e.getMessage(), e);
@@ -113,10 +107,6 @@ public class R2Service implements StorageService {
 
     }
 
-
-
-
-
     // 获取文件的预签名 URL
     @Override
     public URL generatePresignedUrl(String fileName) {
@@ -132,7 +122,6 @@ public class R2Service implements StorageService {
         }
     }
 
-    // 获取文件的预签名 URL
     @Override
     public URL generatePresignedUrlByOrigninalUrl(PresignedUrlRequest request) {
         try {
@@ -140,7 +129,7 @@ public class R2Service implements StorageService {
 
             Date expiration = new Date(System.currentTimeMillis() + Long.parseLong(expirationTime));
             GeneratePresignedUrlRequest generatePresignedUrlRequest = new GeneratePresignedUrlRequest(bucketName, filePath)
-                    .withMethod(HttpMethod.GET)  // 使用 GET 方法读取文件
+                    .withMethod(HttpMethod.GET)
                     .withExpiration(expiration);
             return s3Client.generatePresignedUrl(generatePresignedUrlRequest);
         } catch (Exception e) {
@@ -157,10 +146,9 @@ public class R2Service implements StorageService {
     }
 
     private String extractFilePathFromUrl(String fileUrl) {
-        // 从 URL 中提取文件路径（这里假设 URL 中的路径部分为文件路径）
         String[] urlParts = fileUrl.split("/", 4);
         if (urlParts.length > 3) {
-            return urlParts[3];  // 返回文件路径
+            return urlParts[3];
         }
         throw new IllegalArgumentException("Invalid file URL");
     }
@@ -174,14 +162,17 @@ public class R2Service implements StorageService {
         CloudFile file = cloudFileRepository.findById(fileId)
                 .orElseThrow(() -> new FileNotFoundException("File not found"));
 
-        return file.getStoragePath().replace(endpoints + "/" + bucketName, domain + "/api/storage/files/blob");
+        return file.getStoragePath().replace(endpoints + "/" + bucketName, domain + "/api/storage/v1/files/blob");
     }
 
 
 
-    private String getPrivateUrlByPath(String storagePath) throws FileNotFoundException {
+    private String getPrivateUrlByPath(String storagePath) {
+        if (storagePath == null) {
+            return null;
+        }
 
-        return storagePath.replace(endpoints + "/" + bucketName, domain + "/api/storage/files/blob");
+        return storagePath.replace(endpoints + "/" + bucketName, domain + "/api/storage/v1/files/blob");
     }
 
     @Override
@@ -197,7 +188,6 @@ public class R2Service implements StorageService {
         try (S3Object s3Object = s3Client.getObject(request);
              S3ObjectInputStream inputStream = s3Object.getObjectContent()) {
 
-            // 4. 将内容写入输出流
             IOUtils.copyLarge(inputStream, out);
             out.flush();
 
@@ -221,12 +211,77 @@ public class R2Service implements StorageService {
         try (S3Object s3Object = s3Client.getObject(getObjectRequest);
              S3ObjectInputStream inputStream = s3Object.getObjectContent()) {
 
-            // 4. 将内容写入输出流
             IOUtils.copyLarge(inputStream, response.getOutputStream());
             response.getOutputStream().flush();
 
         } catch (IOException e) {
             throw new GinkgooRunTimeException(CustomErrorEnum.OBTAINING_DOWNLOAD_EXCEPTION);
+        }
+    }
+
+    @Override
+    public CloudFile uploadThumbnailToStorage(Path thumbnailFile, String thumbnailName) {
+        File file = thumbnailFile.toFile();
+        String thumbnailPath = String.format("%s/%s/%s", endpoints, bucketName, thumbnailName);
+
+        s3Client.putObject(new PutObjectRequest(
+                bucketName,
+                thumbnailName,
+                file
+        ));
+
+        return cloudFileRepository.save(CloudFile.fromFile(file, bucketName, thumbnailName, thumbnailPath));
+    }
+
+
+    private boolean isVideoFile(String contentType) {
+        return contentType != null && contentType.startsWith("video/");
+    }
+
+
+    public VideoMetadata extractMetadata(MultipartFile videoFile) throws IOException {
+        Path tempFile = Files.createTempFile("video", videoFile.getOriginalFilename());
+
+        try (InputStream inputStream = videoFile.getInputStream();
+             OutputStream outputStream = new FileOutputStream(tempFile.toFile())) {
+            byte[] buffer = new byte[1024];
+            int bytesRead;
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                outputStream.write(buffer, 0, bytesRead);
+            }
+
+            double videoDuration = VideoMetadataExtractor.getVideoDuration(tempFile.toFile());
+            String videoResolution = VideoMetadataExtractor.getVideoResolution(tempFile.toFile());
+
+            CloudFile cloudFile = generateThumbnail(videoFile, videoDuration);
+            return VideoMetadata.builder()
+                    .thumbnailFileId(cloudFile.getId())
+                    .thumbnailUrl(cloudFile.getStoragePath())
+                    .duration(Math.round(videoDuration * 1000))
+                    .resolution(videoResolution)
+                    .size(videoFile.getSize())
+                    .build();
+        }
+
+    }
+
+    public CloudFile generateThumbnail(MultipartFile file, double videoDuration) throws IOException {
+        Path tempThumbnailFile = null;
+        Path tempFile = Files.createTempFile("video", "temp" + file.getOriginalFilename());
+        file.transferTo(tempFile);
+        try {
+            tempThumbnailFile = VideoMetadataExtractor.generateThumbnailAtPosition(tempFile.toFile() , 1);
+
+            String thumbnailName = VideoMetadataExtractor.generateUniqueThumbnailName(Objects.requireNonNull(file.getOriginalFilename()));
+
+            return uploadThumbnailToStorage(tempThumbnailFile, thumbnailName);
+
+        } catch (Exception e) {
+            log.error("Failed to generate thumbnail.", e);
+            return null;
+        } finally {
+            VideoMetadataExtractor.deleteTempFile(tempThumbnailFile);
+
         }
     }
 }

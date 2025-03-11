@@ -28,6 +28,18 @@ public class CloudFileResponse {
     @Schema(description = "File size")
     private Long fileSize;
 
+    @Schema(name = "Video thumbnail ID")
+    private String videoThumbnailId;
+
+    @Schema(name = "Video thumbnail URL")
+    private String videoThumbnailUrl;
+
+    @Schema(name = "Video duration")
+    private Long videoDuration;
+
+    @Schema(name = "Video resolution")
+    private String videoResolution;
+
     public static CloudFileResponse fromCloudFile(CloudFile cloudFile, String storagePath) {
 
         return CloudFileResponse.builder()
@@ -37,7 +49,18 @@ public class CloudFileResponse {
                 .storagePath(storagePath)
                 .fileType(cloudFile.getFileType())
                 .fileSize(cloudFile.getFileSize())
+
                 .build();
+    }
+
+    public static CloudFileResponse fromCloudFile(CloudFile cloudFile, String storagePath, String thumbnailUrl) {
+
+        CloudFileResponse cloudFileResponse = fromCloudFile(cloudFile, storagePath);
+        cloudFileResponse.setVideoThumbnailId(cloudFile.getVideoThumbnailId());
+        cloudFileResponse.setVideoThumbnailUrl(thumbnailUrl);
+        cloudFileResponse.setVideoDuration(cloudFile.getVideoDuration());
+        cloudFileResponse.setVideoResolution(cloudFile.getVideoResolution());
+        return cloudFileResponse;
     }
 
 }
