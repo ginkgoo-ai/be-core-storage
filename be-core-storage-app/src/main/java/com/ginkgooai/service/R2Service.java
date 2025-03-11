@@ -51,7 +51,7 @@ public class R2Service implements StorageService {
     @Value("${CLOUDFLARE_R2_ENDPOINTS:}")
     private String endpoints;
 
-    @Value(("${SLATE_URI:}"))
+    @Value(("${AUTH_CLIENT:}"))
     private String domain;
 
     private final AmazonS3 s3Client;
