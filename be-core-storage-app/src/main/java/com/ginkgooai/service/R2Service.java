@@ -18,7 +18,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -64,7 +63,7 @@ public class R2Service implements StorageService {
 
     // 上传文件
     @Override
-    public CloudFile uploadFile(MultipartFile file) {
+    public CloudFileResponse uploadFile(MultipartFile file) {
 
         try {
             String storageName = generateUniqueFileName(Objects.requireNonNull(file.getOriginalFilename()));
@@ -77,18 +76,7 @@ public class R2Service implements StorageService {
             s3Client.putObject(new PutObjectRequest(bucketName, storageName, file.getInputStream(), metadata));
             log.info("uploadFile path : {}", storagePath);
 
-            // 保存元数据
-            CloudFile cloudFile = new CloudFile();
-            cloudFile.setOriginalName(file.getOriginalFilename());
-            cloudFile.setStorageName(storageName);
-            cloudFile.setFileType(file.getContentType());
-            cloudFile.setFileSize(file.getSize());
-            cloudFile.setStoragePath(storagePath);
-            // todo
-//            cloudFile.setUploaderId(uploaderId);
-            cloudFile.setBucketName(bucketName);
-
-            return CloudFileResponse.fromCloudFile(cloudFileRepository.save(cloudFile), getPrivateUrlByPath(cloudFile.getStoragePath()));
+            return CloudFileResponse.fromCloudFile(cloudFileRepository.save(cloudFile), getPrivateUrlByPath(cloudFile.getStoragePath()), getPrivateUrlByPath(cloudFile.getVideoThumbnailUrl()));
 
         } catch (Exception e) {
             log.error(e.getMessage(), e);
@@ -118,10 +106,6 @@ public class R2Service implements StorageService {
         return CloudFilesResponse.builder().cloudFiles(cloudFiles).build();
 
     }
-
-
-
-
 
     // 获取文件的预签名 URL
     @Override
@@ -178,14 +162,17 @@ public class R2Service implements StorageService {
         CloudFile file = cloudFileRepository.findById(fileId)
                 .orElseThrow(() -> new FileNotFoundException("File not found"));
 
-        return file.getStoragePath().replace(endpoints + "/" + bucketName, domain + "/api/storage/files/blob");
+        return file.getStoragePath().replace(endpoints + "/" + bucketName, domain + "/api/storage/v1/files/blob");
     }
 
 
 
-    private String getPrivateUrlByPath(String storagePath) throws FileNotFoundException {
+    private String getPrivateUrlByPath(String storagePath) {
+        if (storagePath == null) {
+            return null;
+        }
 
-        return storagePath.replace(endpoints + "/" + bucketName, domain + "/api/storage/files/blob");
+        return storagePath.replace(endpoints + "/" + bucketName, domain + "/api/storage/v1/files/blob");
     }
 
     @Override
@@ -224,7 +211,6 @@ public class R2Service implements StorageService {
         try (S3Object s3Object = s3Client.getObject(getObjectRequest);
              S3ObjectInputStream inputStream = s3Object.getObjectContent()) {
 
-            // 4. 将内容写入输出流
             IOUtils.copyLarge(inputStream, response.getOutputStream());
             response.getOutputStream().flush();
 
@@ -284,7 +270,7 @@ public class R2Service implements StorageService {
         Path tempFile = Files.createTempFile("video", "temp" + file.getOriginalFilename());
         file.transferTo(tempFile);
         try {
-            tempThumbnailFile = VideoMetadataExtractor.generateThumbnailAtPosition(tempFile.toFile() , videoDuration / 2);
+            tempThumbnailFile = VideoMetadataExtractor.generateThumbnailAtPosition(tempFile.toFile() , 1);
 
             String thumbnailName = VideoMetadataExtractor.generateUniqueThumbnailName(Objects.requireNonNull(file.getOriginalFilename()));
 

@@ -57,7 +57,6 @@ public class CloudFile {
     @Column(name = "bucket_name", nullable = false)
     private String bucketName;
 
-
     @Column(name = "video_thumbnail_id")
     private String videoThumbnailId;
 
@@ -87,20 +86,20 @@ public class CloudFile {
 
 
     public static CloudFile fromFile(MultipartFile file, String bucketName,
-                                     String storagePath, String storageName) {
-        return initBaseCloudFile(file, bucketName, storagePath, storageName);
+                                     String storageName, String storagePath) {
+        return initBaseCloudFile(file, bucketName, storageName, storagePath);
     }
 
     public static CloudFile fromFile(MultipartFile file, String bucketName,
-                                     String storagePath, String storageName,
+                                     String storageName, String storagePath,
                                      VideoMetadata videoMetadata) {
-        return initBaseCloudFile(file, bucketName, storagePath, storageName)
+        return initBaseCloudFile(file, bucketName, storageName, storagePath)
                 .setVideoMetadata(videoMetadata);
     }
 
 
     private static CloudFile initBaseCloudFile(MultipartFile file, String bucketName,
-                                               String storagePath, String storageName) {
+                                               String storageName, String storagePath) {
         CloudFile cloudFile = new CloudFile();
         cloudFile.setOriginalName(file.getOriginalFilename());
         cloudFile.setStorageName(storageName);

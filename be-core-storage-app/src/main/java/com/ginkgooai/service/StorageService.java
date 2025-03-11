@@ -1,5 +1,6 @@
 package com.ginkgooai.service;
 
+import com.ginkgooai.domain.CloudFile;
 import com.ginkgooai.dto.CloudFileResponse;
 import com.ginkgooai.dto.CloudFilesResponse;
 import com.ginkgooai.model.request.PresignedUrlRequest;
@@ -27,16 +28,6 @@ public interface StorageService {
 
     Set<String> ALLOWED_FILE_TYPES = Set.of("image/jpeg", "image/png", "image/gif");
 
-
-
-    CloudFileResponse uploadFile(MultipartFile file);
-
-    URL generatePresignedUrl(String fileName);
-
-    String generateSignedUrl(String fileId) throws FileNotFoundException, URISyntaxException;
-
-    URL generatePresignedUrlByOrigninalUrl(PresignedUrlRequest request);
-
     static String generateUniqueFileName(String originalFileName) {
         String fileExtension = "";
         int dotIndex = originalFileName.lastIndexOf(".");
@@ -47,7 +38,8 @@ public interface StorageService {
         return UUID.randomUUID().toString().replace("-", "") + fileExtension;
     }
 
-    CloudFile uploadFile(MultipartFile file);
+
+    CloudFileResponse uploadFile(MultipartFile file);
 
     URL generatePresignedUrl(String fileName);
 
