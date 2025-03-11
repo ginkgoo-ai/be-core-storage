@@ -175,7 +175,35 @@ public class StorageController {
         return storageService.getPrivateUrl(fileId);
     }
 
+    /**
+     * This method is used to download a file and stream its content directly to the client as a downloadable attachment.
+     * It utilizes the Ant-style path pattern "/blob/**" to match requests, providing flexibility in handling various file paths.
+     *
+     * @param request  The HTTP servlet request object, containing information about the client's request.
+     * @param response The HTTP servlet response object, used to write the file content to the client.
+     * @throws IOException If an I/O error occurs during file streaming or if the file is not found.
+     */
+    @Operation(
+            summary = "Download file",
+            description = "Streams the file content directly to the client as a downloadable attachment.",
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "File successfully streamed to the client",
+                            content = @Content(mediaType = "application/octet-stream")
+                    ),
+                    @ApiResponse(
+                            responseCode = "404",
+                            description = "File not found with the provided ID"
+                    ),
+                    @ApiResponse(
+                            responseCode = "500",
+                            description = "Internal server error during file streaming"
+                    )
+            }
+    )
     @GetMapping("/blob/**")
+    @ResponseBody
     public void blob(HttpServletRequest request, HttpServletResponse response) throws IOException {
         storageService.downloadBlob(request, response);
     }
