@@ -1,6 +1,8 @@
 package com.ginkgooai.controller;
 
 import com.ginkgooai.domain.CloudFile;
+import com.ginkgooai.dto.CloudFileResponse;
+import com.ginkgooai.dto.CloudFilesResponse;
 import com.ginkgooai.model.request.PresignedUrlRequest;
 import com.ginkgooai.service.StorageService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -9,6 +11,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,6 +20,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URL;
 
@@ -27,7 +31,7 @@ import java.net.URL;
 @Slf4j
 @Tag(name = "File Storage", description = "File storage management")  // Add category tag
 @RestController
-@RequestMapping("/files")
+@RequestMapping("/v1/files")
 @RequiredArgsConstructor
 public class StorageController {
 
@@ -36,14 +40,14 @@ public class StorageController {
     /**
      * Upload file.
      *
-     * @return A pre-signed URL that can be used to access the file.
+     * @return Cloud file.
      */
     @Operation(
             summary = "Upload file",
             description = "Upload the file to the storage service and return a unique identifier for the file",
             responses = {
                     @ApiResponse(
-                            responseCode = "200",
+                            responseCode = "201",
                             description = "File upload successful, returns file preview URL"
                     ),
 
@@ -54,7 +58,7 @@ public class StorageController {
             }
     )
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<CloudFile> upload(
+    public ResponseEntity<CloudFileResponse> upload(
             @RequestPart(name = "file") MultipartFile file) {
         return ResponseEntity.status(201).body(storageService.uploadFile(file));
     }
@@ -164,6 +168,16 @@ public class StorageController {
     @PostMapping("/{fileId}")
     public void downloadFile(@PathVariable String fileId, HttpServletResponse response) throws IOException {
         storageService.downloadFile(fileId, response.getOutputStream());
+    }
+
+    @GetMapping("/{fileId}/private-url")
+    public String getPrivateUrl(@PathVariable String fileId) throws FileNotFoundException {
+        return storageService.getPrivateUrl(fileId);
+    }
+
+    @GetMapping("/blob/**")
+    public void blob(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        storageService.downloadBlob(request, response);
     }
 
 }

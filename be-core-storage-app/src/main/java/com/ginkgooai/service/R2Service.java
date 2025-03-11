@@ -7,13 +7,18 @@ import com.ginkgooai.core.common.exception.GinkgooRunTimeException;
 import com.ginkgooai.core.common.exception.enums.CustomErrorEnum;
 import com.ginkgooai.domain.CloudFile;
 import com.ginkgooai.domain.VideoMetadata;
+import com.ginkgooai.dto.CloudFileResponse;
+import com.ginkgooai.dto.CloudFilesResponse;
 import com.ginkgooai.model.request.PresignedUrlRequest;
 import com.ginkgooai.repository.CloudFileRepository;
 import com.ginkgooai.utils.VideoMetadataExtractor;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -22,9 +27,14 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.Objects;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * @author: david
@@ -45,10 +55,13 @@ public class R2Service implements StorageService {
     @Value("${CLOUDFLARE_R2_ENDPOINTS:}")
     private String endpoints;
 
+    @Value(("${SLATE_URI:}"))
+    private String domain;
+
     private final AmazonS3 s3Client;
 
     private final CloudFileRepository cloudFileRepository;
-    
+
     // 上传文件
     @Override
     public CloudFile uploadFile(MultipartFile file) {
@@ -64,13 +77,50 @@ public class R2Service implements StorageService {
             s3Client.putObject(new PutObjectRequest(bucketName, storageName, file.getInputStream(), metadata));
             log.info("uploadFile path : {}", storagePath);
 
-            return cloudFileRepository.save(cloudFile);
+            // 保存元数据
+            CloudFile cloudFile = new CloudFile();
+            cloudFile.setOriginalName(file.getOriginalFilename());
+            cloudFile.setStorageName(storageName);
+            cloudFile.setFileType(file.getContentType());
+            cloudFile.setFileSize(file.getSize());
+            cloudFile.setStoragePath(storagePath);
+            // todo
+//            cloudFile.setUploaderId(uploaderId);
+            cloudFile.setBucketName(bucketName);
+
+            return CloudFileResponse.fromCloudFile(cloudFileRepository.save(cloudFile), getPrivateUrlByPath(cloudFile.getStoragePath()));
 
         } catch (Exception e) {
             log.error(e.getMessage(), e);
             throw new GinkgooRunTimeException(CustomErrorEnum.UPLOADING_FILE_EXCEPTION);
         }
     }
+
+
+    @Override
+    public CloudFilesResponse uploadFiles(MultipartFile[] files) {
+
+        List<CompletableFuture<CloudFileResponse>> futures = new ArrayList<>();
+
+        for (MultipartFile file : files) {
+            if (file.getSize() > MAX_FILE_SIZE) {
+                //todo 文件过大
+            }
+            // 异步处理文件上传
+            futures.add(CompletableFuture.completedFuture(uploadFile(file)));
+        }
+
+        // 收集所有结果
+        List<CloudFileResponse> cloudFiles = futures.stream()
+                .map(CompletableFuture::join)
+                .toList();
+
+        return CloudFilesResponse.builder().cloudFiles(cloudFiles).build();
+
+    }
+
+
+
 
 
     // 获取文件的预签名 URL
@@ -124,6 +174,20 @@ public class R2Service implements StorageService {
         return UUID.randomUUID() + extension;
     }
 
+    public String getPrivateUrl(String fileId) throws FileNotFoundException {
+        CloudFile file = cloudFileRepository.findById(fileId)
+                .orElseThrow(() -> new FileNotFoundException("File not found"));
+
+        return file.getStoragePath().replace(endpoints + "/" + bucketName, domain + "/api/storage/files/blob");
+    }
+
+
+
+    private String getPrivateUrlByPath(String storagePath) throws FileNotFoundException {
+
+        return storagePath.replace(endpoints + "/" + bucketName, domain + "/api/storage/files/blob");
+    }
+
     @Override
     public void downloadFile(String fileId, OutputStream out) throws FileNotFoundException {
         CloudFile file = cloudFileRepository.findById(fileId)
@@ -139,6 +203,30 @@ public class R2Service implements StorageService {
 
             IOUtils.copyLarge(inputStream, out);
             out.flush();
+
+        } catch (IOException e) {
+            throw new GinkgooRunTimeException(CustomErrorEnum.OBTAINING_DOWNLOAD_EXCEPTION);
+        }
+    }
+
+    @Override
+    public void downloadBlob(HttpServletRequest request, HttpServletResponse response) {
+        String requestURI = request.getRequestURI();
+        log.info("Request uri :{}" , requestURI);
+        String url = URLDecoder.decode(requestURI, StandardCharsets.UTF_8);
+        String fileName = url.substring(url.lastIndexOf('/') + 1);
+
+        GetObjectRequest getObjectRequest = new GetObjectRequest(
+                bucketName,
+                fileName
+        );
+
+        try (S3Object s3Object = s3Client.getObject(getObjectRequest);
+             S3ObjectInputStream inputStream = s3Object.getObjectContent()) {
+
+            // 4. 将内容写入输出流
+            IOUtils.copyLarge(inputStream, response.getOutputStream());
+            response.getOutputStream().flush();
 
         } catch (IOException e) {
             throw new GinkgooRunTimeException(CustomErrorEnum.OBTAINING_DOWNLOAD_EXCEPTION);

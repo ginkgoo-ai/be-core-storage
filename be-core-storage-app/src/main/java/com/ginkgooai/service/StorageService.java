@@ -1,8 +1,10 @@
 package com.ginkgooai.service;
 
-import com.ginkgooai.domain.CloudFile;
+import com.ginkgooai.dto.CloudFileResponse;
+import com.ginkgooai.dto.CloudFilesResponse;
 import com.ginkgooai.model.request.PresignedUrlRequest;
-import com.ginkgooai.model.response.UploadObjectResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.FileNotFoundException;
@@ -25,6 +27,16 @@ public interface StorageService {
 
     Set<String> ALLOWED_FILE_TYPES = Set.of("image/jpeg", "image/png", "image/gif");
 
+
+
+    CloudFileResponse uploadFile(MultipartFile file);
+
+    URL generatePresignedUrl(String fileName);
+
+    String generateSignedUrl(String fileId) throws FileNotFoundException, URISyntaxException;
+
+    URL generatePresignedUrlByOrigninalUrl(PresignedUrlRequest request);
+
     static String generateUniqueFileName(String originalFileName) {
         String fileExtension = "";
         int dotIndex = originalFileName.lastIndexOf(".");
@@ -46,4 +58,10 @@ public interface StorageService {
     void downloadFile(String originUrl, OutputStream out) throws FileNotFoundException;
 
     CloudFile uploadThumbnailToStorage(Path thumbnailFile, String thumbnailName);
+
+    void downloadBlob(HttpServletRequest request, HttpServletResponse response);
+
+    String getPrivateUrl(String fileId) throws FileNotFoundException;
+
+    CloudFilesResponse uploadFiles(MultipartFile[] files);
 }
