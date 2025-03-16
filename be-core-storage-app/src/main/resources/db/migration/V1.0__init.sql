@@ -1,20 +1,8 @@
 -- Initialize Database Settings
-SET statement_timeout = 0;
-SET lock_timeout = 0;
-SET idle_in_transaction_session_timeout = 0;
-SET client_encoding = 'UTF8';
-SET standard_conforming_strings = on;
-SET check_function_bodies = false;
-SET xmloption = content;
-SET client_min_messages = warning;
-SET row_security = off;
-
 ------------------------------------------
--- Core Cloud file Tables
-------------------------------------------
-DROP TABLE IF EXISTS cloud_file;
+DROP TABLE IF EXISTS storage.cloud_file;
 -- 建表语句
-CREATE TABLE cloud_file (
+CREATE TABLE storage.cloud_file (
                             id VARCHAR(36) PRIMARY KEY NOT NULL,
                             original_name VARCHAR(255) NOT NULL,
                             storage_name VARCHAR(255) NOT NULL UNIQUE,
@@ -28,6 +16,6 @@ CREATE TABLE cloud_file (
                             is_deleted BOOLEAN DEFAULT FALSE NOT NULL
 );
 
-CREATE INDEX idx_cloud_file_bucket ON cloud_file USING brin (bucket_name);
-CREATE INDEX idx_cloud_file_uploader ON cloud_file USING hash (uploader_id);
-CREATE INDEX idx_cloud_file_created ON cloud_file USING btree (created_at DESC);
+CREATE INDEX idx_cloud_file_bucket ON storage.cloud_file USING brin (bucket_name);
+CREATE INDEX idx_cloud_file_uploader ON storage.cloud_file USING hash (uploader_id);
+CREATE INDEX idx_cloud_file_created ON storage.cloud_file USING btree (created_at DESC);
