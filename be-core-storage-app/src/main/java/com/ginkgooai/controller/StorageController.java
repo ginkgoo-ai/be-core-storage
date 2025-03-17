@@ -23,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URL;
+import java.util.List;
 
 /**
  * @author: david
@@ -188,15 +189,17 @@ public class StorageController {
                     )
             }
     )
-    @GetMapping("/{fileId}")
-    public ResponseEntity<CloudFileResponse> getFileDetails(
+    @GetMapping("")
+    public ResponseEntity<List<CloudFileResponse>> getFileDetails(
             @Parameter(
-                    description = "Unique identifier of the file",
-                    required = true,
-                    example = "550e8400-e29b-41d4-a716-446655440000"
+                    description = "List of file IDs to retrieve (max 500)",
+                    required = true
             )
-            @PathVariable String fileId) {
-        CloudFileResponse fileDetails = storageService.getFileDetails(fileId);
+            @RequestParam List<String> fileIds) {
+        if (fileIds.size() > 500) {
+            throw new IllegalArgumentException("Cannot request more than 500 files at once");
+        }
+        List<CloudFileResponse> fileDetails = storageService.getFileDetails(fileIds);
         return ResponseEntity.ok(fileDetails);
     }
 

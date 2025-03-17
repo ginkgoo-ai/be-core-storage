@@ -13,6 +13,7 @@ import java.io.OutputStream;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -57,5 +58,5 @@ public interface StorageService {
 
     CloudFilesResponse uploadFiles(MultipartFile[] files);
 
-    CloudFileResponse getFileDetails(String fileId);
+    List<CloudFileResponse> getFileDetails(List<String> fileId);
 }

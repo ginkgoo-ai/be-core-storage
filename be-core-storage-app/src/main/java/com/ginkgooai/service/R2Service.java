@@ -108,11 +108,10 @@ public class R2Service implements StorageService {
     }
 
     @Override
-    public CloudFileResponse getFileDetails(String fileId) {
-        CloudFile file = cloudFileRepository.findById(fileId)
-                .orElseThrow(() -> new ResourceNotFoundException("file", "id", fileId));
-
-        return CloudFileResponse.fromCloudFile(file, getPrivateUrlByPath(file.getStoragePath()), getPrivateUrlByPath(file.getVideoThumbnailUrl()));
+    public List<CloudFileResponse> getFileDetails(List<String> fileIds) {
+        List<CloudFile> file = cloudFileRepository.findAllById(fileIds);
+        
+        return file.stream().map(t -> CloudFileResponse.fromCloudFile(t, getPrivateUrlByPath(t.getStoragePath()), getPrivateUrlByPath(t.getVideoThumbnailUrl()))).toList();
     }
 
     // 获取文件的预签名 URL
