@@ -4,6 +4,7 @@ import com.amazonaws.HttpMethod;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.*;
 import com.ginkgooai.core.common.exception.GinkgooRunTimeException;
+import com.ginkgooai.core.common.exception.ResourceNotFoundException;
 import com.ginkgooai.core.common.exception.enums.CustomErrorEnum;
 import com.ginkgooai.domain.CloudFile;
 import com.ginkgooai.domain.VideoMetadata;
@@ -104,6 +105,14 @@ public class R2Service implements StorageService {
 
         return CloudFilesResponse.builder().cloudFiles(cloudFiles).build();
 
+    }
+
+    @Override
+    public CloudFileResponse getFileDetails(String fileId) {
+        CloudFile file = cloudFileRepository.findById(fileId)
+                .orElseThrow(() -> new ResourceNotFoundException("file", "id", fileId));
+
+        return CloudFileResponse.fromCloudFile(file, getPrivateUrlByPath(file.getStoragePath()), getPrivateUrlByPath(file.getVideoThumbnailUrl()));
     }
 
     // 获取文件的预签名 URL

@@ -170,6 +170,36 @@ public class StorageController {
         storageService.downloadFile(fileId, response.getOutputStream());
     }
 
+    @Operation(
+            summary = "Get file details by ID",
+            description = "Retrieves detailed information about a file using its unique identifier",
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "File details retrieved successfully",
+                            content = @Content(
+                                    mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = CloudFile.class)
+                            )
+                    ),
+                    @ApiResponse(
+                            responseCode = "404",
+                            description = "File not found with the provided ID"
+                    )
+            }
+    )
+    @GetMapping("/{fileId}")
+    public ResponseEntity<CloudFileResponse> getFileDetails(
+            @Parameter(
+                    description = "Unique identifier of the file",
+                    required = true,
+                    example = "550e8400-e29b-41d4-a716-446655440000"
+            )
+            @PathVariable String fileId) {
+        CloudFileResponse fileDetails = storageService.getFileDetails(fileId);
+        return ResponseEntity.ok(fileDetails);
+    }
+
     @GetMapping("/{fileId}/private-url")
     public String getPrivateUrl(@PathVariable String fileId) throws FileNotFoundException {
         return storageService.getPrivateUrl(fileId);

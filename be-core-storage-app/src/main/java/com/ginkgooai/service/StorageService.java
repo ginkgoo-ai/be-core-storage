@@ -56,4 +56,6 @@ public interface StorageService {
     String getPrivateUrl(String fileId) throws FileNotFoundException;
 
     CloudFilesResponse uploadFiles(MultipartFile[] files);
+
+    CloudFileResponse getFileDetails(String fileId);
 }
