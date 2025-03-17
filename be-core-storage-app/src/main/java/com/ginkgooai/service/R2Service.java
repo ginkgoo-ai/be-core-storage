@@ -32,6 +32,8 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
+import static jodd.net.MimeTypes.getMimeType;
+
 /**
  * @author: david
  * @date: 23:13 2025/2/8
@@ -200,6 +202,10 @@ public class R2Service implements StorageService {
         String url = URLDecoder.decode(requestURI, StandardCharsets.UTF_8);
         String fileName = url.substring(url.lastIndexOf('/') + 1);
 
+        // 新增MIME类型检测
+        String fileExtension = fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase();
+        String contentType = getMimeType(fileExtension);
+        
         GetObjectRequest getObjectRequest = new GetObjectRequest(
                 bucketName,
                 fileName
@@ -207,6 +213,10 @@ public class R2Service implements StorageService {
 
         try (S3Object s3Object = s3Client.getObject(getObjectRequest);
              S3ObjectInputStream inputStream = s3Object.getObjectContent()) {
+
+            // 设置动态响应头
+            response.setContentType(contentType);
+            response.setHeader("Accept-Ranges", "bytes");
 
             IOUtils.copyLarge(inputStream, response.getOutputStream());
             response.getOutputStream().flush();
