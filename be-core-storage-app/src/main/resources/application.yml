@@ -1,4 +1,3 @@
-SERVER_PORT : 8085
 core-gateway-uri: ${SERVICE_SCHEME}://${CORE_GATEWAY_HOST}:${CORE_GATEWAY_PORT}
 
 server:
