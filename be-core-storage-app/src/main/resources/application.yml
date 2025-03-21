@@ -53,7 +53,14 @@ management:
     enabled : true
     sampling:
       probability: 1.0
-
+  endpoints:
+    web:
+      base-path: ""
+      path-mapping:
+        health: health
+  health:
+    ldap:
+      enabled: false
 
 springdoc:
   api-docs:
