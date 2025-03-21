@@ -13,6 +13,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -195,10 +197,7 @@ public class StorageController {
                     description = "List of file IDs to retrieve (max 500)",
                     required = true
             )
-            @RequestParam List<String> fileIds) {
-        if (fileIds.size() > 500) {
-            throw new IllegalArgumentException("Cannot request more than 500 files at once");
-        }
+            @Valid @RequestParam @Size(min = 1, max = 100) List<String> fileIds) {
         List<CloudFileResponse> fileDetails = storageService.getFileDetails(fileIds);
         return ResponseEntity.ok(fileDetails);
     }
