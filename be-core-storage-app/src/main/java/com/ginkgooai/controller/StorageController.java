@@ -17,6 +17,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -39,6 +40,12 @@ import java.util.List;
 public class StorageController {
 
     private final StorageService storageService;
+
+    @Value("${MAX_CACHE_AGE:2592000}")
+    private String MAX_CACHE_AGE;
+
+    @Value(("${EXPIRES_TIME:2592000000}"))
+    private String EXPIRES_TIME;
 
     /**
      * Upload file.
@@ -237,6 +244,11 @@ public class StorageController {
     @GetMapping("/blob/**")
     @ResponseBody
     public void blob(HttpServletRequest request, HttpServletResponse response) throws IOException {
+
+        response.setHeader("Cache-Control", "public, max-age=" + MAX_CACHE_AGE);
+        response.setHeader("Pragma", "cache");
+        response.setDateHeader("Expires", System.currentTimeMillis() + Long.parseLong(EXPIRES_TIME)); 
+        
         storageService.downloadBlob(request, response);
     }
 
