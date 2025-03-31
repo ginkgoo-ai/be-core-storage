@@ -8,7 +8,7 @@ COPY settings.xml ./
 COPY be-core-storage-app ./be-core-storage-app
 COPY be-core-storage-sdk ./be-core-storage-sdk
 
-RUN mvn clean install -X -U -s settings.xml && \
+RUN mvn clean install -U -s settings.xml && \
     mvn package -pl be-core-storage-app -Dmaven.test.skip=true -s settings.xml
 
 FROM openjdk:23-jdk-slim
