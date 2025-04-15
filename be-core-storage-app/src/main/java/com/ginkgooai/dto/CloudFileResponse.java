@@ -5,6 +5,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Data;
 
+import java.time.LocalDateTime;
+
 @Data
 @Builder
 @Schema(description = "Cloud file data transfer object")
@@ -40,6 +42,12 @@ public class CloudFileResponse {
     @Schema(name = "Video resolution")
     private String videoResolution;
 
+	@Schema(description = "Creation timestamp")
+	private LocalDateTime createdAt;
+
+	@Schema(description = "Last update timestamp")
+	private LocalDateTime updatedAt;
+
     public static CloudFileResponse fromCloudFile(CloudFile cloudFile, String storagePath) {
 
         return CloudFileResponse.builder()
@@ -49,7 +57,8 @@ public class CloudFileResponse {
                 .storagePath(storagePath)
                 .fileType(cloudFile.getFileType())
                 .fileSize(cloudFile.getFileSize())
-
+			.createdAt(cloudFile.getCreatedAt())
+			.updatedAt(cloudFile.getUpdatedAt())
                 .build();
     }
 
