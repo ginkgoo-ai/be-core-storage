@@ -10,9 +10,12 @@ import com.ginkgooai.domain.CloudFile;
 import com.ginkgooai.domain.VideoMetadata;
 import com.ginkgooai.dto.CloudFileResponse;
 import com.ginkgooai.dto.CloudFilesResponse;
+import com.ginkgooai.dto.SaveSeparatelyRequest;
+import com.ginkgooai.dto.PDFHighlightRequest;
 import com.ginkgooai.model.request.PresignedUrlRequest;
 import com.ginkgooai.repository.CloudFileRepository;
 import com.ginkgooai.utils.VideoMetadataExtractor;
+import com.ginkgooai.utils.PDFHighlighter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -21,8 +24,10 @@ import org.apache.commons.io.IOUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import com.alibaba.fastjson.JSONArray;
 
 import java.io.*;
+import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLDecoder;
@@ -112,6 +117,151 @@ public class R2Service implements StorageService {
         List<CloudFile> file = cloudFileRepository.findAllById(fileIds);
         
         return file.stream().map(t -> CloudFileResponse.fromCloudFile(t, getPrivateUrlByPath(t.getStoragePath()), getPrivateUrlByPath(t.getVideoThumbnailUrl()))).toList();
+    }
+
+    @Override
+    public CloudFileResponse saveSeparately(SaveSeparatelyRequest saveSeparatelyRequest) {
+        try {
+            // Validate request parameters
+            if (saveSeparatelyRequest.getThirdPartUrl() == null || saveSeparatelyRequest.getThirdPartUrl().isEmpty()) {
+                throw new IllegalArgumentException("Third party URL cannot be null or empty");
+            }
+
+            log.info("Starting to download file from third party URL: {}", saveSeparatelyRequest.getThirdPartUrl());
+
+            // Create HTTP connection to download file from third party URL
+            URL url = new URL(saveSeparatelyRequest.getThirdPartUrl());
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            
+            // Set request method
+            connection.setRequestMethod("GET");
+            
+            // Set cookie if provided
+            if (saveSeparatelyRequest.getCookie() != null && !saveSeparatelyRequest.getCookie().isEmpty()) {
+                connection.setRequestProperty("Cookie", saveSeparatelyRequest.getCookie());
+                log.debug("Set cookie header: {}", saveSeparatelyRequest.getCookie());
+            }
+            
+            // Set common headers to mimic browser request
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+            connection.setRequestProperty("Accept", "*/*");
+            
+            // Set connection timeout
+            connection.setConnectTimeout(30000); // 30 seconds
+            connection.setReadTimeout(60000);    // 60 seconds
+            
+            // Check response code
+            int responseCode = connection.getResponseCode();
+            if (responseCode != HttpURLConnection.HTTP_OK) {
+                throw new RuntimeException("Failed to download file from third party URL. Response code: " + responseCode);
+            }
+            
+            // Get content type and length
+            String contentType = connection.getContentType();
+            if (contentType == null) {
+                contentType = "application/octet-stream"; // Default content type
+            }
+            
+            long contentLength = connection.getContentLengthLong();
+            log.info("File content type: {}, content length: {}", contentType, contentLength);
+            
+            // Extract filename from URL or generate one
+            String extension = getExtensionFromContentType(contentType);
+            String originalFileName = "downloaded_file" + extension;
+
+            // Generate unique storage name
+            String storageName = generateUniqueFileName(originalFileName);
+            String storagePath = String.format("%s/%s/%s", endpoints, bucketName, storageName);
+            
+            // Create ObjectMetadata for S3 upload
+            ObjectMetadata metadata = new ObjectMetadata();
+            if (contentLength > 0) {
+                metadata.setContentLength(contentLength);
+            }
+            metadata.setContentType(contentType);
+            
+            // Download and upload to R2 storage
+            try (InputStream inputStream = connection.getInputStream()) {
+                // Upload to S3/R2
+                PutObjectRequest putObjectRequest = new PutObjectRequest(bucketName, storageName, inputStream, metadata);
+                s3Client.putObject(putObjectRequest);
+                
+                log.info("Successfully uploaded file to R2 storage. Path: {}", storagePath);
+                
+                // Create CloudFile entity
+                CloudFile cloudFile = CloudFile.builder()
+                        .originalName(originalFileName)
+                        .storageName(storageName)
+                        .fileType(contentType)
+                        .fileSize(contentLength)
+                        .storagePath(storagePath)
+                        .bucketName(bucketName)
+                        .isDeleted(false)
+                        .build();
+
+                
+                // Save to database
+                CloudFile savedCloudFile = cloudFileRepository.save(cloudFile);
+                
+                // Return response
+                return CloudFileResponse.fromCloudFile(
+                    savedCloudFile,
+                    getPrivateUrlByPath(savedCloudFile.getStoragePath()),
+                    null
+                );
+            }
+            
+        } catch (Exception e) {
+            log.error("Failed to save file separately from URL: {}", saveSeparatelyRequest.getThirdPartUrl(), e);
+            throw new GinkgooRunTimeException(CustomErrorEnum.UPLOADING_FILE_EXCEPTION);
+        }
+    }
+
+    /**
+     * Extract filename from URL
+     */
+    private String extractFileNameFromUrl(String urlString) {
+        try {
+            URL url = new URL(urlString);
+            String path = url.getPath();
+            if (path != null && !path.isEmpty()) {
+                String fileName = path.substring(path.lastIndexOf('/') + 1);
+                // Remove query parameters if any
+                int queryIndex = fileName.indexOf('?');
+                if (queryIndex != -1) {
+                    fileName = fileName.substring(0, queryIndex);
+                }
+                return fileName.isEmpty() ? null : fileName;
+            }
+        } catch (Exception e) {
+            log.warn("Failed to extract filename from URL: {}", urlString, e);
+        }
+        return null;
+    }
+
+    /**
+     * Get file extension from content type
+     */
+    private String getExtensionFromContentType(String contentType) {
+        if (contentType == null) {
+            return "";
+        }
+        
+        // Common content type to extension mappings
+        Map<String, String> contentTypeToExtension = Map.of(
+            "image/jpeg", ".jpg",
+            "image/png", ".png",
+            "image/gif", ".gif",
+            "image/webp", ".webp",
+            "video/mp4", ".mp4",
+            "video/avi", ".avi",
+            "video/mov", ".mov",
+            "video/wmv", ".wmv",
+            "application/pdf", ".pdf",
+            "text/plain", ".txt"
+        );
+        
+        return contentTypeToExtension.getOrDefault(contentType.toLowerCase(), "");
     }
 
     // 获取文件的预签名 URL
@@ -298,6 +448,119 @@ public class R2Service implements StorageService {
         } finally {
             VideoMetadataExtractor.deleteTempFile(tempThumbnailFile);
 
+        }
+    }
+
+    @Override
+    public void processPDFHighlight(PDFHighlightRequest request, HttpServletResponse response) throws FileNotFoundException, IOException {
+        try {
+            // Validate request parameters
+            if (request.getFileId() == null || request.getFileId().isEmpty()) {
+                throw new IllegalArgumentException("File ID cannot be null or empty");
+            }
+            if (request.getHighlightData() == null || request.getHighlightData().isEmpty()) {
+                throw new IllegalArgumentException("Highlight data cannot be null or empty");
+            }
+
+            log.info("Processing PDF highlight for file ID: {}", request.getFileId());
+
+            // Get file information from database
+            CloudFile cloudFile = cloudFileRepository.findById(request.getFileId())
+                    .orElseThrow(() -> new FileNotFoundException("File not found with ID: " + request.getFileId()));
+
+            // Validate that it's a PDF file
+            if (!isPDFFile(cloudFile.getFileType())) {
+                throw new IllegalArgumentException("File is not a PDF. File type: " + cloudFile.getFileType());
+            }
+
+            // Download PDF from R2 storage to a temporary file
+            Path tempInputFile = Files.createTempFile("pdf_input_", ".pdf");
+            Path tempOutputFile = Files.createTempFile("pdf_highlighted_", ".pdf");
+
+            try {
+                // Download PDF from R2 to temporary file
+                downloadPDFFromR2(cloudFile.getStorageName(), tempInputFile);
+
+                // Process PDF highlighting - convert FastJSON JSONArray to string for PDFHighlighter
+                String highlightDataString = request.getHighlightData().toJSONString();
+                PDFHighlighter.highlightAnswers(tempInputFile.toFile(), tempOutputFile.toFile(), highlightDataString);
+
+                // Set response headers for PDF blob
+                response.setContentType("application/pdf");
+                response.setHeader("Content-Disposition", "attachment; filename*=UTF-8''" + 
+                    URLEncoder.encode(cloudFile.getOriginalName().replace(".pdf", "_highlighted.pdf"), StandardCharsets.UTF_8));
+                
+                // Get file size for Content-Length header
+                long fileSize = Files.size(tempOutputFile);
+                response.setContentLengthLong(fileSize);
+
+                // Stream the highlighted PDF to response
+                try (InputStream inputStream = Files.newInputStream(tempOutputFile)) {
+                    byte[] buffer = new byte[8192];
+                    int bytesRead;
+                    while ((bytesRead = inputStream.read(buffer)) != -1) {
+                        response.getOutputStream().write(buffer, 0, bytesRead);
+                    }
+                    response.getOutputStream().flush();
+                }
+
+                log.info("Successfully processed PDF highlight for file ID: {}, output size: {} bytes", 
+                    request.getFileId(), fileSize);
+
+            } finally {
+                // Clean up temporary files
+                try {
+                    Files.deleteIfExists(tempInputFile);
+                    Files.deleteIfExists(tempOutputFile);
+                } catch (IOException e) {
+                    log.warn("Failed to clean up temporary files", e);
+                }
+            }
+
+        } catch (FileNotFoundException e) {
+            log.error("File not found: {}", e.getMessage());
+            throw e;
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid request: {}", e.getMessage());
+            throw new IOException("Invalid request: " + e.getMessage(), e);
+        } catch (Exception e) {
+            log.error("Failed to process PDF highlight for file ID: {}", request.getFileId(), e);
+            throw new IOException("Failed to process PDF highlight: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Check if the file is a PDF
+     */
+    private boolean isPDFFile(String contentType) {
+        return contentType != null && (
+            contentType.equals("application/pdf") || 
+            contentType.toLowerCase().contains("pdf")
+        );
+    }
+
+    /**
+     * Download PDF file from R2 storage to a temporary file
+     */
+    private void downloadPDFFromR2(String storageName, Path outputPath) throws IOException {
+        GetObjectRequest request = new GetObjectRequest(bucketName, storageName);
+
+        try (S3Object s3Object = s3Client.getObject(request);
+             S3ObjectInputStream inputStream = s3Object.getObjectContent();
+             OutputStream outputStream = Files.newOutputStream(outputPath)) {
+
+            byte[] buffer = new byte[8192];
+            int bytesRead;
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                outputStream.write(buffer, 0, bytesRead);
+            }
+            outputStream.flush();
+
+            log.debug("Downloaded PDF from R2 storage to temporary file: {}", outputPath);
+
+        } catch (Exception e) {
+            log.error("Failed to download PDF from R2 storage: {}", storageName, e);
+            throw new IOException("Failed to download PDF from storage: " + e.getMessage(), e);
         }
     }
 }

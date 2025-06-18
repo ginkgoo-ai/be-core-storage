@@ -3,12 +3,15 @@ package com.ginkgooai.service;
 import com.ginkgooai.domain.CloudFile;
 import com.ginkgooai.dto.CloudFileResponse;
 import com.ginkgooai.dto.CloudFilesResponse;
+import com.ginkgooai.dto.SaveSeparatelyRequest;
+import com.ginkgooai.dto.PDFHighlightRequest;
 import com.ginkgooai.model.request.PresignedUrlRequest;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -59,4 +62,16 @@ public interface StorageService {
     CloudFilesResponse uploadFiles(MultipartFile[] files);
 
     List<CloudFileResponse> getFileDetails(List<String> fileId);
+
+    CloudFileResponse saveSeparately(SaveSeparatelyRequest saveSeparatelyRequest);
+
+    /**
+     * Process PDF highlighting and return the highlighted PDF as a blob stream
+     * 
+     * @param request PDF highlight request containing fileId and highlightData
+     * @param response HTTP response to write the highlighted PDF blob to
+     * @throws FileNotFoundException if the PDF file is not found
+     * @throws IOException if there's an error processing the PDF
+     */
+    void processPDFHighlight(PDFHighlightRequest request, HttpServletResponse response) throws FileNotFoundException, IOException;
 }

@@ -2,7 +2,8 @@ package com.ginkgooai.controller;
 
 import com.ginkgooai.domain.CloudFile;
 import com.ginkgooai.dto.CloudFileResponse;
-import com.ginkgooai.dto.CloudFilesResponse;
+import com.ginkgooai.dto.PDFHighlightRequest;
+import com.ginkgooai.dto.SaveSeparatelyRequest;
 import com.ginkgooai.model.request.PresignedUrlRequest;
 import com.ginkgooai.service.StorageService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -252,4 +253,53 @@ public class StorageController {
         storageService.downloadBlob(request, response);
     }
 
+
+    @PostMapping("/third-part")
+    public ResponseEntity<CloudFileResponse> saveSeparately(
+            @RequestBody SaveSeparatelyRequest saveSeparatelyRequest) {
+        return ResponseEntity.status(201).body(storageService.saveSeparately(saveSeparatelyRequest));
+    }
+
+    /**
+     * Process PDF highlighting and return the highlighted PDF as a blob stream.
+     * 
+     * @param request The PDF highlight request containing file ID and highlight data
+     * @param response The HTTP response to stream the highlighted PDF blob to
+     * @throws IOException If an error occurs during PDF processing
+     */
+    @Operation(
+            summary = "Highlight PDF and return as blob",
+            description = "Download PDF from storage, apply highlighting based on question-answer pairs, and return the highlighted PDF as a blob stream",
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "PDF successfully highlighted and streamed to the client",
+                            content = @Content(mediaType = "application/pdf")
+                    ),
+                    @ApiResponse(
+                            responseCode = "400",
+                            description = "Invalid request - file is not a PDF or invalid highlight data"
+                    ),
+                    @ApiResponse(
+                            responseCode = "404",
+                            description = "PDF file not found with the provided ID"
+                    ),
+                    @ApiResponse(
+                            responseCode = "500",
+                            description = "Internal server error during PDF processing"
+                    )
+            }
+    )
+    @PostMapping("/pdf-highlight")
+    @ResponseBody
+    public void highlightPDF(
+            @Parameter(
+                    description = "PDF highlight request data",
+                    required = true
+            )
+            @RequestBody PDFHighlightRequest request, 
+            HttpServletResponse response) throws IOException {
+        
+        storageService.processPDFHighlight(request, response);
+    }
 }
