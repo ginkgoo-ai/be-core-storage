@@ -3,6 +3,7 @@ package com.ginkgooai.utils;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
@@ -22,7 +23,10 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.HashMap;
 import java.util.Set;
+import java.util.Arrays;
+import java.util.Collections;
 
+@Slf4j
 public class PDFHighlighter {
 
 //    // 假设这是您提供的JSON数据
@@ -110,10 +114,10 @@ public class PDFHighlighter {
      */
     public static void analyzePDFStructure(File inputFile) throws IOException {
         try (PDDocument document = PDDocument.load(inputFile)) {
-            System.out.println("Total pages: " + document.getNumberOfPages());
+            log.info("Total pages: {}", document.getNumberOfPages());
             
             for (int pageNum = 0; pageNum < Math.min(2, document.getNumberOfPages()); pageNum++) {
-                System.out.println("\n--- PAGE " + (pageNum + 1) + " ANALYSIS ---");
+                log.info("\n--- PAGE {} ANALYSIS ---", pageNum + 1);
                 
                 PDFStructureAnalyzer analyzer = new PDFStructureAnalyzer();
                 analyzer.analyzePage(document, pageNum);
@@ -162,7 +166,7 @@ public class PDFHighlighter {
         
         private void analyzeLayout() {
             if (textElements.isEmpty()) {
-                System.out.println("No text found on this page");
+                                        log.warn("No text found on this page");
                 return;
             }
             
@@ -173,7 +177,7 @@ public class PDFHighlighter {
                 lineGroups.computeIfAbsent(lineY, k -> new ArrayList<>()).add(element);
             }
             
-            System.out.println("Found " + lineGroups.size() + " text lines");
+                            log.info("Found {} text lines", lineGroups.size());
             
             // Analyze each line
             int lineCount = 0;
@@ -195,8 +199,9 @@ public class PDFHighlighter {
                 
                 String text = lineText.toString().trim();
                 if (text.length() > 0) {
-                    System.out.printf("Line %2d (Y=%3.0f, X=%3.0f-%3.0f): %s%n", 
-                                    lineCount, (float)entry.getKey(), minX, maxX, text);
+                    log.info("Line {} (Y={}, X={}-{}): {}", 
+                                    lineCount, String.format("%.0f", (float)entry.getKey()), 
+                                    String.format("%.0f", minX), String.format("%.0f", maxX), text);
                                     
                     // Check if this might be a question-answer pair
                     if (text.contains(":")) {
@@ -231,9 +236,9 @@ public class PDFHighlighter {
                         charIndex++;
                     }
                     
-                    System.out.printf("    → Question: '%s' (ends at X=%.0f)%n", beforeColon, questionEndX);
-                    System.out.printf("    → Answer: '%s' (starts at X=%.0f)%n", afterColon, answerStartX);
-                    System.out.printf("    → Gap: %.0f points%n", answerStartX - questionEndX);
+                    log.info("    → Question: '{}' (ends at X={})", beforeColon, String.format("%.0f", questionEndX));
+                    log.info("    → Answer: '{}' (starts at X={})", afterColon, String.format("%.0f", answerStartX));
+                    log.info("    → Gap: {} points", String.format("%.0f", answerStartX - questionEndX));
                 }
             }
         }
@@ -246,12 +251,16 @@ public class PDFHighlighter {
                 xPositions.put(roundedX, xPositions.getOrDefault(roundedX, 0) + 1);
             }
             
-            System.out.println("\nX position frequency (showing top positions):");
+                            log.info("\nX position frequency (showing top positions):");
             xPositions.entrySet().stream()
                     .sorted((a, b) -> b.getValue().compareTo(a.getValue()))
                     .limit(10)
-                    .forEach(entry -> System.out.printf("X=%d: %d chars%n", entry.getKey(), entry.getValue()));
+                    .forEach(entry -> log.info("X={}: {} chars", entry.getKey(), entry.getValue()));
         }
+        
+
+        
+
     }
     
     /**
@@ -283,16 +292,28 @@ public class PDFHighlighter {
         try (PDDocument document = PDDocument.load(inputFile)) {
             JSONArray qaArray = JSON.parseArray(jsonData);
 
+            log.info("\n🔍 === PDF HIGHLIGHTING START ===");
+            log.info("Input PDF: {}", inputFile.getName());
+            log.info("Output PDF: {}", outputFile.getName());
+            log.info("JSON Data: {}", jsonData);
+            log.info("Total Q&A pairs to process: {}", qaArray.size());
+
             for (int i = 0; i < qaArray.size(); i++) {
                 JSONObject qa = qaArray.getJSONObject(i);
                 String question = qa.getString("question");
                 String answer = qa.getString("answer");
+
+                log.info("\n📋 Processing Q&A pair {}/{}", i + 1, qaArray.size());
+                log.info("Question: \"{}\"", question);
+                log.info("Answer: \"{}\"", answer);
 
                 // 在PDF中查找并高亮答案
                 findAndHighlight(document, question, answer);
             }
 
             document.save(outputFile);
+            log.info("\n✅ === PDF HIGHLIGHTING COMPLETED ===");
+            log.info("Result saved to: {}", outputFile.getAbsolutePath());
         }
     }
 
@@ -304,10 +325,10 @@ public class PDFHighlighter {
      * @throws IOException
      */
     private static void findAndHighlight(PDDocument document, String question, String answerToHighlight) throws IOException {
-        System.out.println("=== Searching for Question: '" + question + "' with Answer: '" + answerToHighlight + "' ===");
+        log.info("=== Searching for Question: '{}' with Answer: '{}' ===", question, answerToHighlight);
         
         for (int pageNum = 0; pageNum < document.getNumberOfPages(); pageNum++) {
-            System.out.println("Processing page " + (pageNum + 1));
+            log.info("Processing page {}", pageNum + 1);
             
             // Use coordinate-based matching for left-right layout
             CoordinateBasedMatcher matcher = new CoordinateBasedMatcher();
@@ -316,7 +337,7 @@ public class PDFHighlighter {
     }
 
     /**
-     * Coordinate-based matcher for left-right layout PDFs
+     * Enhanced coordinate-based matcher that detects separator lines and handles column layout
      */
     private static class CoordinateBasedMatcher extends PDFTextStripper {
         private PDDocument document;
@@ -324,236 +345,767 @@ public class PDFHighlighter {
         private String targetQuestion;
         private String targetAnswer;
         private List<TextElement> allTextElements = new ArrayList<>();
-        
+        private List<SeparatorLine> separatorLines = new ArrayList<>();
+        private List<QARegion> qaRegions = new ArrayList<>();
+
         public CoordinateBasedMatcher() throws IOException {
             super();
+            setSuppressDuplicateOverlappingText(false);
         }
-        
+
         public void processPage(PDDocument doc, int pageNumber, String question, String answer) throws IOException {
             this.document = doc;
             this.pageNum = pageNumber;
-            this.targetQuestion = question;
-            this.targetAnswer = answer;
+            this.targetQuestion = question.trim();
+            this.targetAnswer = answer.trim();
             this.allTextElements.clear();
-            
-            // Set page range
+            this.separatorLines.clear();
+            this.qaRegions.clear();
+
+            log.info("\n=== Processing Page {} ===", pageNumber + 1);
+            log.info("Target Question: \"{}\"", targetQuestion);
+            log.info("Target Answer: \"{}\"", targetAnswer);
+
+            // Set page range for text extraction
             this.setStartPage(pageNumber + 1);
             this.setEndPage(pageNumber + 1);
+
+            log.info("🔍 === STARTING TEXT EXTRACTION ===");
             
-            // Extract text with positions
-            this.getText(doc);
-            
-            // Find and highlight using coordinate-based matching
-            findAndHighlightByCoordinates();
-        }
-        
-        @Override
-        protected void writeString(String text, List<TextPosition> textPositions) throws IOException {
-            super.writeString(text, textPositions);
-            
-            // Store all text elements with their positions
-            for (int i = 0; i < text.length() && i < textPositions.size(); i++) {
-                char ch = text.charAt(i);
-                TextPosition pos = textPositions.get(i);
-                
-                // Debug first few characters to understand coordinate system
-                if (allTextElements.size() < 5) {
-                    System.out.println("    → Text '" + ch + "' at: X=" + pos.getXDirAdj() + 
-                                     ", Y=" + pos.getYDirAdj() + 
-                                     ", W=" + pos.getWidthDirAdj() + 
-                                     ", H=" + pos.getHeightDir());
-                }
-                
-                allTextElements.add(new TextElement(ch, pos.getXDirAdj(), pos.getYDirAdj(), 
-                                                 pos.getWidthDirAdj(), pos.getHeightDir(), pos));
+            // Extract all text elements
+            try {
+                String extractedText = this.getText(doc);
+                log.info("📄 Raw extracted text length: {}", extractedText.length());
+                log.info("📄 Raw extracted text: \"{}\"", 
+                    extractedText.length() > 200 ? extractedText.substring(0, 200) + "..." : extractedText);
+            } catch (Exception e) {
+                log.error("❌ Error during text extraction: {}", e.getMessage());
+                e.printStackTrace();
             }
-        }
-        
-        private void findAndHighlightByCoordinates() throws IOException {
+            
+            log.info("📊 Total text elements collected: {}", allTextElements.size());
+            
             if (allTextElements.isEmpty()) {
-                System.out.println("No text found on page " + (pageNum + 1));
+                log.warn("❌ === NO TEXT ELEMENTS FOUND ===");
+                log.warn("This could indicate:");
+                log.warn("  1. PDF contains only images/scanned content");
+                log.warn("  2. Text extraction failed");
+                log.warn("  3. PDF is encrypted or protected");
                 return;
             }
             
-            // Group text elements by lines (similar Y coordinates)
-            Map<Integer, List<TextElement>> lineGroups = groupByLines();
+            // Show detailed Y coordinate analysis
+            analyzeYCoordinates();
             
-            System.out.println("Found " + lineGroups.size() + " text lines on page " + (pageNum + 1));
+            // Detect separator lines in the PDF
+            detectSeparatorLines();
             
-            // Search each line for question matches
-            for (Map.Entry<Integer, List<TextElement>> entry : lineGroups.entrySet()) {
-                List<TextElement> lineElements = entry.getValue();
-                // Sort by X coordinate
-                lineElements.sort((a, b) -> Float.compare(a.x, b.x));
+            // Create Q&A regions based on separator lines
+            createQARegions();
+
+            // Try to find and highlight the question-answer pair
+            findAndHighlightByRegions();
+        }
+
+        /**
+         * Analyze and display all Y coordinates found in the PDF
+         */
+        private void analyzeYCoordinates() {
+            log.info("\n📍 === Y COORDINATE ANALYSIS ===");
+            
+            // Group by Y coordinates
+            Map<Float, List<TextElement>> yGroups = new TreeMap<>(Collections.reverseOrder());
+            for (TextElement element : allTextElements) {
+                yGroups.computeIfAbsent(element.y, k -> new ArrayList<>()).add(element);
+            }
+            
+            log.info("Found {} unique Y coordinates:", yGroups.size());
+            
+            int lineIndex = 1;
+            for (Map.Entry<Float, List<TextElement>> entry : yGroups.entrySet()) {
+                float y = entry.getKey();
+                List<TextElement> elements = entry.getValue();
                 
-                // Build line text
-                String lineText = buildLineText(lineElements);
+                // Sort elements by X coordinate
+                elements.sort((a, b) -> Float.compare(a.x, b.x));
                 
-                if (lineText.trim().length() > 0) {
-                    System.out.println("Line (Y=" + entry.getKey() + "): " + lineText);
+                // Build text for this Y coordinate
+                StringBuilder lineText = new StringBuilder();
+                float lastX = -1;
+                for (TextElement element : elements) {
+                    if (lastX > 0 && element.x - lastX > 5) {
+                        lineText.append(" ");
+                    }
+                    lineText.append(element.character);
+                    lastX = element.x + element.width;
+                }
+                
+                log.info("  Line {} Y={} ({} chars): \"{}\"", 
+                    lineIndex, String.format("%.2f", y), elements.size(), lineText.toString().trim());
+                lineIndex++;
+            }
+        }
+
+        @Override
+        protected void writeString(String text, List<TextPosition> textPositions) throws IOException {
+            log.debug("🔤 writeString called with text: \"{}\" ({} chars)", text, text.length());
+            log.debug("   TextPositions count: {}", textPositions.size());
+            
+            // Store all text elements with their positions for later analysis
+            int characterCount = 0;
+            for (TextPosition position : textPositions) {
+                String textString = position.getUnicode();
+                if (textString != null && !textString.trim().isEmpty()) {
                     
-                    // Check if this line contains our question
-                    if (containsQuestion(lineText, targetQuestion)) {
-                        System.out.println("  → Found question in this line! Highlighting entire line...");
-                        
-                        // Highlight the entire line
-                        List<TextPosition> linePositions = highlightEntireLine(lineElements, lineText);
-                        
-                        if (!linePositions.isEmpty()) {
-                            highlightTextPositions(document, pageNum, linePositions);
-                            System.out.println("  → Successfully highlighted entire line with " + linePositions.size() + " positions");
-                            return; // Found and highlighted, stop searching
+                    // Debug first few positions
+                    if (characterCount < 5) {
+                        log.debug("   Position {}: '{}' at X={}, Y={}, W={}, H={}", 
+                            characterCount, textString,
+                            String.format("%.2f", position.getXDirAdj()),
+                            String.format("%.2f", position.getYDirAdj()),
+                            String.format("%.2f", position.getWidthDirAdj()),
+                            String.format("%.2f", position.getHeightDir()));
+                    }
+                    
+                    for (char ch : textString.toCharArray()) {
+                        if (!Character.isWhitespace(ch)) {
+                            allTextElements.add(new TextElement(
+                                ch,
+                                position.getXDirAdj(),
+                                position.getYDirAdj(),
+                                position.getWidthDirAdj(),
+                                position.getHeightDir(),
+                                position
+                            ));
+                            characterCount++;
                         }
                     }
                 }
             }
             
-            System.out.println("No matching question found on page " + (pageNum + 1));
+            log.debug("   Added {} non-whitespace characters", characterCount);
+            log.debug("   Total elements so far: {}", allTextElements.size());
         }
-        
-        private Map<Integer, List<TextElement>> groupByLines() {
-            Map<Integer, List<TextElement>> lineGroups = new TreeMap<>();
-            
-            // Sort all elements by Y coordinate first (descending, since PDF Y goes from bottom to top)
-            allTextElements.sort((a, b) -> Float.compare(b.y, a.y));
-            
+
+        /**
+         * Detect horizontal separator lines by analyzing Y coordinate gaps
+         */
+        private void detectSeparatorLines() {
+            if (allTextElements.isEmpty()) {
+                log.warn("No text elements found for separator detection");
+                return;
+            }
+
+            // Group elements by Y coordinate to find text lines
+            Map<Integer, List<TextElement>> yGroups = new TreeMap<>();
             for (TextElement element : allTextElements) {
-                // Use precise Y coordinate for grouping
-                int lineY = Math.round(element.y);
+                int roundedY = Math.round(element.y / 3) * 3; // Group by 3-point intervals
+                yGroups.computeIfAbsent(roundedY, k -> new ArrayList<>()).add(element);
+            }
+
+            // Convert to sorted list of Y coordinates
+            List<Integer> yCoordinates = new ArrayList<>(yGroups.keySet());
+            yCoordinates.sort(Collections.reverseOrder()); // PDF Y goes from bottom to top
+
+            log.info("Found {} text lines at Y coordinates: {}", 
+                yCoordinates.size(), yCoordinates.subList(0, Math.min(10, yCoordinates.size())));
+
+            // Find significant gaps between text lines (these indicate separator lines)
+            for (int i = 0; i < yCoordinates.size() - 1; i++) {
+                int currentY = yCoordinates.get(i);
+                int nextY = yCoordinates.get(i + 1);
                 
-                // Find existing line within very tight tolerance
-                Integer matchingLineY = null;
-                for (Integer existingY : lineGroups.keySet()) {
-                    if (Math.abs(existingY - lineY) <= 1) { // Only 1-point tolerance
-                        matchingLineY = existingY;
-                        break;
+                // Calculate gap (remember Y coordinates are in reverse order)
+                int gap = currentY - nextY;
+                
+                // If gap is significant (more than 15 points), there's likely a separator line
+                if (gap > 15) {
+                    float separatorY = (currentY + nextY) / 2.0f;
+                    separatorLines.add(new SeparatorLine(separatorY, gap));
+                    log.info("Detected separator line at Y={} (gap: {} points)", 
+                        String.format("%.1f", separatorY), gap);
+                }
+            }
+
+            log.info("Total separator lines detected: {}", separatorLines.size());
+        }
+
+        /**
+         * Create Q&A regions based on separator lines
+         */
+        private void createQARegions() {
+            if (separatorLines.isEmpty()) {
+                // No separator lines found, treat entire page as one region
+                log.info("No separator lines found, using entire page as one region");
+                qaRegions.add(new QARegion(Float.MAX_VALUE, Float.MIN_VALUE, allTextElements));
+                return;
+            }
+
+            // Sort separator lines by Y coordinate (descending)
+            separatorLines.sort((a, b) -> Float.compare(b.y, a.y));
+
+            // Create regions between separator lines
+            List<Float> boundaries = new ArrayList<>();
+            boundaries.add(Float.MAX_VALUE); // Top boundary
+            
+            for (SeparatorLine line : separatorLines) {
+                boundaries.add(line.y);
+            }
+            
+            boundaries.add(Float.MIN_VALUE); // Bottom boundary
+
+            // Create Q&A regions
+            for (int i = 0; i < boundaries.size() - 1; i++) {
+                float topY = boundaries.get(i);
+                float bottomY = boundaries.get(i + 1);
+                
+                List<TextElement> regionElements = new ArrayList<>();
+                for (TextElement element : allTextElements) {
+                    if (element.y <= topY && element.y > bottomY) {
+                        regionElements.add(element);
                     }
                 }
                 
-                if (matchingLineY != null) {
-                    lineGroups.get(matchingLineY).add(element);
+                if (!regionElements.isEmpty()) {
+                    QARegion region = new QARegion(topY, bottomY, regionElements);
+                    qaRegions.add(region);
+                    
+                    log.info("Created Q&A region {}: Y={} to {} ({} characters)", 
+                                     qaRegions.size(),
+                                     String.format("%.1f", topY),
+                                     String.format("%.1f", bottomY),
+                                     regionElements.size());
+                }
+            }
+
+            log.info("Total Q&A regions created: {}", qaRegions.size());
+        }
+
+        /**
+         * Find and highlight question-answer pairs within regions
+         */
+        private void findAndHighlightByRegions() throws IOException {
+            log.info("\n🔍 === STARTING REGION-BASED MATCHING ===");
+            log.info("Total characters extracted: {}", allTextElements.size());
+            log.info("Total Q&A regions: {}", qaRegions.size());
+            
+            if (qaRegions.isEmpty()) {
+                log.warn("❌ No Q&A regions found for matching");
+                return;
+            }
+
+            boolean foundMatch = false;
+
+            // Try to find matches in each Q&A region
+            for (int i = 0; i < qaRegions.size(); i++) {
+                QARegion region = qaRegions.get(i);
+                log.info("\n📍 === Analyzing Q&A Region {}/{} ===", i + 1, qaRegions.size());
+                log.info("Region Y range: {} to {}", String.format("%.1f", region.topY), String.format("%.1f", region.bottomY));
+                log.info("Region characters: {}", region.elements.size());
+                
+                // Show a sample of text in this region
+                String regionText = buildColumnText(region.elements);
+                System.out.println("Region text sample: \"" + 
+                    (regionText.length() > 100 ? regionText.substring(0, 100) + "..." : regionText) + "\"");
+                
+                if (tryRegionBasedMatching(region)) {
+                    foundMatch = true;
+                    log.info("✅ Found match in region {}", i + 1);
+                    break; // Found match, stop searching
                 } else {
-                    List<TextElement> newLine = new ArrayList<>();
-                    newLine.add(element);
-                    lineGroups.put(lineY, newLine);
+                    log.info("❌ No match found in region {}", i + 1);
                 }
             }
-            
-            // Debug output with improved validation
-            System.out.println("Line grouping results:");
-            int lineCount = 0;
-            for (Map.Entry<Integer, List<TextElement>> entry : lineGroups.entrySet()) {
-                lineCount++;
-                List<TextElement> elements = entry.getValue();
-                elements.sort((a, b) -> Float.compare(a.x, b.x)); // Sort by X within each line
-                String lineText = buildLineText(elements);
+
+            if (!foundMatch) {
+                            log.warn("\n❌ === NO MATCHING FOUND ===");
+            log.warn("No matching question-answer pair found on page {}", pageNum + 1);
+            log.warn("Target Question: \"{}\"", targetQuestion);
+            log.warn("Target Answer: \"{}\"", targetAnswer);
                 
-                // Check Y coordinate variance within this "line"
-                float minY = elements.stream().map(e -> e.y).min(Float::compare).orElse(0f);
-                float maxY = elements.stream().map(e -> e.y).max(Float::compare).orElse(0f);
-                float yVariance = maxY - minY;
-                
-                System.out.println("  Line " + lineCount + " Y=" + entry.getKey() + 
-                                 " (variance: " + String.format("%.1f", yVariance) + 
-                                 ", " + elements.size() + " chars): " + lineText.trim());
-                
-                // Warning if Y variance is too high (indicates wrong grouping)
-                if (yVariance > 2) {
-                    System.out.println("    ⚠️  Warning: High Y variance in this line - possibly incorrect grouping!");
-                }
+                // Show all text found on the page for debugging
+                System.out.println("\n📄 === ALL TEXT ON PAGE ===");
+                String allText = buildColumnText(allTextElements);
+                System.out.println("Full page text: \"" + allText + "\"");
             }
-            
-            return lineGroups;
         }
-        
-        private String buildLineText(List<TextElement> elements) {
-            StringBuilder sb = new StringBuilder();
-            for (TextElement element : elements) {
-                sb.append(element.character);
-            }
-            return sb.toString();
-        }
-        
-        private boolean containsQuestion(String lineText, String question) {
-            if (lineText == null || question == null) {
+
+        /**
+         * NEW APPROACH: Line-by-line analysis with 1-6 line combinations for Q&A matching
+         */
+        private boolean tryRegionBasedMatching(QARegion region) throws IOException {
+            List<TextElement> elements = region.elements;
+            if (elements.isEmpty()) {
+                System.out.println("    ❌ Region is empty, skipping");
                 return false;
             }
+
+            System.out.println("    🔧 === LINE-BY-LINE REGION ANALYSIS ===");
+            System.out.println("    Region Y range: " + String.format("%.1f", region.topY) + " to " + String.format("%.1f", region.bottomY));
+            System.out.println("    Total characters in region: " + elements.size());
+
+            // Step 1: Detect column boundary
+            float columnBoundary = detectColumnBoundaryInRegion(elements);
             
-            String lowerLineText = lineText.toLowerCase().trim();
-            String lowerQuestion = question.toLowerCase().trim();
+            // Step 2: Group elements by lines (Y coordinates)
+            Map<Integer, List<TextElement>> lineGroups = new TreeMap<>(Collections.reverseOrder());
+            for (TextElement element : elements) {
+                int lineKey = Math.round(element.y / 3) * 3; // Group by 3-point intervals
+                lineGroups.computeIfAbsent(lineKey, k -> new ArrayList<>()).add(element);
+            }
+
+            System.out.println("    📄 === FOUND " + lineGroups.size() + " LINES IN REGION ===");
+
+            // Step 3: Analyze each line and split into question/answer parts
+            List<LineQA> lineQAs = new ArrayList<>();
+            int lineIndex = 1;
             
-            // Try exact match first
-            if (lowerLineText.contains(lowerQuestion)) {
+            for (Map.Entry<Integer, List<TextElement>> entry : lineGroups.entrySet()) {
+                List<TextElement> lineElements = entry.getValue();
+                lineElements.sort((a, b) -> Float.compare(a.x, b.x)); // Sort by X within line
+                
+                // Split this line into left (question) and right (answer) parts
+                List<TextElement> questionPart = new ArrayList<>();
+                List<TextElement> answerPart = new ArrayList<>();
+                
+                for (TextElement element : lineElements) {
+                    if (element.x < columnBoundary) {
+                        questionPart.add(element);
+                    } else {
+                        answerPart.add(element);
+                    }
+                }
+                
+                String questionText = buildLineText(questionPart).trim();
+                String answerText = buildLineText(answerPart).trim();
+                
+                LineQA lineQA = new LineQA(entry.getKey(), questionText, answerText, questionPart, answerPart);
+                lineQAs.add(lineQA);
+                
+                System.out.println("    Line " + lineIndex + " (Y=" + entry.getKey() + "):");
+                System.out.println("      Question part: \"" + questionText + "\"");
+                System.out.println("      Answer part: \"" + answerText + "\"");
+                
+                lineIndex++;
+            }
+
+            // Step 4: Try combinations of 1-6 consecutive lines for matching
+            System.out.println("    🎯 === TRYING LINE COMBINATIONS (1-6 lines) ===");
+            
+            for (int startLine = 0; startLine < lineQAs.size(); startLine++) {
+                for (int lineCount = 1; lineCount <= Math.min(6, lineQAs.size() - startLine); lineCount++) {
+                    if (tryLineCombination(lineQAs, startLine, lineCount)) {
+                        return true; // Found match!
+                    }
+                }
+            }
+
+            System.out.println("    ❌ === NO MATCH FOUND IN ANY LINE COMBINATION ===");
+            return false;
+        }
+
+        /**
+         * Try matching with a specific combination of consecutive lines
+         */
+        private boolean tryLineCombination(List<LineQA> lineQAs, int startIndex, int lineCount) throws IOException {
+            System.out.println("      🔍 Testing lines " + (startIndex + 1) + "-" + (startIndex + lineCount) + 
+                             " (" + lineCount + " lines):");
+
+            // Combine question parts from consecutive lines
+            StringBuilder combinedQuestion = new StringBuilder();
+            StringBuilder combinedAnswer = new StringBuilder();
+            List<TextElement> allQuestionElements = new ArrayList<>();
+            List<TextElement> allAnswerElements = new ArrayList<>();
+            
+            for (int i = startIndex; i < startIndex + lineCount; i++) {
+                LineQA lineQA = lineQAs.get(i);
+                
+                if (lineQA.questionText.length() > 0) {
+                    if (combinedQuestion.length() > 0) combinedQuestion.append(" ");
+                    combinedQuestion.append(lineQA.questionText);
+                    allQuestionElements.addAll(lineQA.questionElements);
+                }
+                
+                if (lineQA.answerText.length() > 0) {
+                    if (combinedAnswer.length() > 0) combinedAnswer.append(" ");
+                    combinedAnswer.append(lineQA.answerText);
+                    allAnswerElements.addAll(lineQA.answerElements);
+                }
+            }
+
+            String finalQuestionText = combinedQuestion.toString().trim();
+            String finalAnswerText = combinedAnswer.toString().trim();
+
+            System.out.println("        Combined Question: \"" + finalQuestionText + "\"");
+            System.out.println("        Combined Answer: \"" + finalAnswerText + "\"");
+            System.out.println("        Target Question: \"" + targetQuestion + "\"");
+            System.out.println("        Target Answer: \"" + targetAnswer + "\"");
+
+            // Perform matching
+            boolean questionMatch = performDetailedQuestionMatch(finalQuestionText, targetQuestion);
+            boolean answerMatch = performDetailedAnswerMatch(finalAnswerText, targetAnswer);
+
+            System.out.println("        Question Match: " + (questionMatch ? "✅ YES" : "❌ NO"));
+            System.out.println("        Answer Match: " + (answerMatch ? "✅ YES" : "❌ NO"));
+
+            if (questionMatch && answerMatch) {
+                System.out.println("        🎉 === PERFECT MATCH FOUND ===");
+                System.out.println("        Highlighting " + allQuestionElements.size() + " question characters and " + 
+                                 allAnswerElements.size() + " answer characters");
+                
+                // Highlight both question and answer
+                highlightElements(allQuestionElements);
+                highlightElements(allAnswerElements);
+                return true;
+            } else if (questionMatch) {
+                System.out.println("        ⚠️ === PARTIAL MATCH (Question Only) ===");
+                System.out.println("        Highlighting " + allQuestionElements.size() + " question characters");
+                
+                // Highlight question only
+                highlightElements(allQuestionElements);
+                return true;
+            }
+
+            return false;
+        }
+
+        /**
+         * Helper class to store line-based question-answer data
+         */
+        private static class LineQA {
+            int yCoordinate;
+            String questionText;
+            String answerText;
+            List<TextElement> questionElements;
+            List<TextElement> answerElements;
+
+            LineQA(int y, String q, String a, List<TextElement> qElements, List<TextElement> aElements) {
+                this.yCoordinate = y;
+                this.questionText = q;
+                this.answerText = a;
+                this.questionElements = new ArrayList<>(qElements);
+                this.answerElements = new ArrayList<>(aElements);
+            }
+        }
+
+        /**
+         * Build text from elements in a single line
+         */
+        private String buildLineText(List<TextElement> elements) {
+            if (elements.isEmpty()) return "";
+            
+            StringBuilder text = new StringBuilder();
+            float lastX = -1;
+            
+            for (TextElement element : elements) {
+                // Add space if there's a significant gap (word separation)
+                if (lastX > 0 && element.x - lastX > 5) {
+                    text.append(" ");
+                }
+                text.append(element.character);
+                lastX = element.x + element.width;
+            }
+            
+            return text.toString();
+        }
+
+        /**
+         * Build complete text from column elements, properly handling multi-line content
+         */
+        private String buildCompleteColumnText(List<TextElement> elements) {
+            if (elements.isEmpty()) return "";
+
+            // Group elements by Y coordinate (lines) first
+            Map<Integer, List<TextElement>> lineGroups = new TreeMap<>(Collections.reverseOrder());
+            for (TextElement element : elements) {
+                int lineKey = Math.round(element.y / 3) * 3; // Group by 3-point intervals
+                lineGroups.computeIfAbsent(lineKey, k -> new ArrayList<>()).add(element);
+            }
+
+            StringBuilder completeText = new StringBuilder();
+            
+            // Process each line and join them
+            for (Map.Entry<Integer, List<TextElement>> entry : lineGroups.entrySet()) {
+                List<TextElement> lineElements = entry.getValue();
+                lineElements.sort((a, b) -> Float.compare(a.x, b.x)); // Sort by X within line
+                
+                StringBuilder lineText = new StringBuilder();
+                float lastX = -1;
+                
+                for (TextElement element : lineElements) {
+                    // Add space if there's a significant gap (word separation)
+                    if (lastX > 0 && element.x - lastX > 5) {
+                        lineText.append(" ");
+                    }
+                    lineText.append(element.character);
+                    lastX = element.x + element.width;
+                }
+                
+                String cleanLineText = lineText.toString().trim();
+                if (cleanLineText.length() > 0) {
+                    if (completeText.length() > 0) {
+                        completeText.append(" "); // Add space between lines
+                    }
+                    completeText.append(cleanLineText);
+                }
+            }
+            
+            return completeText.toString();
+        }
+
+        /**
+         * Perform detailed question matching with comprehensive analysis
+         */
+        private boolean performDetailedQuestionMatch(String extractedText, String targetQuestion) {
+            System.out.println("      🔍 === DETAILED QUESTION ANALYSIS ===");
+            
+            String normalizedExtracted = normalizeText(extractedText);
+            String normalizedTarget = normalizeText(targetQuestion);
+            
+            System.out.println("      Normalized extracted: \"" + normalizedExtracted + "\"");
+            System.out.println("      Normalized target: \"" + normalizedTarget + "\"");
+            
+            // Strategy 1: Direct substring match
+            if (normalizedExtracted.contains(normalizedTarget)) {
+                System.out.println("      ✅ Direct substring match found!");
                 return true;
             }
             
-            // Try normalized match (remove extra spaces)
-            String normalizedLine = lowerLineText.replaceAll("\\s+", " ");
-            String normalizedQuestion = lowerQuestion.replaceAll("\\s+", " ");
+            if (normalizedTarget.contains(normalizedExtracted)) {
+                System.out.println("      ✅ Target contains extracted text!");
+                return true;
+            }
             
-            return normalizedLine.contains(normalizedQuestion);
+            // Strategy 2: Word-based matching
+            String[] targetWords = normalizedTarget.split("\\s+");
+            String[] extractedWords = normalizedExtracted.split("\\s+");
+            
+            if (targetWords.length == 0) {
+                System.out.println("      ❌ No target words to match");
+                return false;
+            }
+            
+            int matchedWords = 0;
+            System.out.println("      📝 Word-by-word analysis:");
+            
+            for (String targetWord : targetWords) {
+                if (targetWord.length() <= 2) continue; // Skip very short words
+                
+                boolean wordFound = false;
+                for (String extractedWord : extractedWords) {
+                    if (extractedWord.contains(targetWord) || targetWord.contains(extractedWord)) {
+                        wordFound = true;
+                        matchedWords++;
+                        break;
+                    }
+                }
+                System.out.println("        \"" + targetWord + "\" -> " + (wordFound ? "✅" : "❌"));
+            }
+            
+            double matchRatio = (double) matchedWords / targetWords.length;
+            System.out.println("      📊 Match ratio: " + String.format("%.2f", matchRatio) + " (threshold: 0.7)");
+            
+            return matchRatio >= 0.7; // Lower threshold for better matching
         }
-        
+
         /**
-         * Highlight only the text that contains the question, not the entire line
+         * Perform detailed answer matching
          */
-        private List<TextPosition> highlightEntireLine(List<TextElement> lineElements, String lineText) {
-            List<TextPosition> highlightPositions = new ArrayList<>();
+        private boolean performDetailedAnswerMatch(String extractedText, String targetAnswer) {
+            System.out.println("      🔍 === DETAILED ANSWER ANALYSIS ===");
             
-            System.out.println("    → Analyzing line for highlighting: '" + lineText.trim() + "'");
+            String normalizedExtracted = normalizeText(extractedText);
+            String normalizedTarget = normalizeText(targetAnswer);
             
-            // First, let's see exactly what Y coordinates we have
-            Set<Float> uniqueYs = lineElements.stream().map(e -> e.y).collect(java.util.stream.Collectors.toSet());
-            System.out.println("    → Unique Y coordinates in this 'line': " + uniqueYs);
+            System.out.println("      Normalized extracted: \"" + normalizedExtracted + "\"");
+            System.out.println("      Normalized target: \"" + normalizedTarget + "\"");
             
-            if (uniqueYs.size() > 1) {
-                System.out.println("    → ⚠️  Multiple Y coordinates detected! This is definitely multiple lines.");
-                
-                // Find which Y coordinate contains our question
-                Map<Float, List<TextElement>> byY = lineElements.stream()
-                    .collect(java.util.stream.Collectors.groupingBy(e -> e.y));
-                
-                for (Map.Entry<Float, List<TextElement>> entry : byY.entrySet()) {
-                    List<TextElement> elementsAtY = entry.getValue();
-                    elementsAtY.sort((a, b) -> Float.compare(a.x, b.x));
-                    String textAtY = buildLineText(elementsAtY);
-                    
-                    System.out.println("    → Y=" + entry.getKey() + ": '" + textAtY.trim() + "'");
-                    
-                    // Check if this specific Y line contains our question
-                    if (containsQuestion(textAtY, targetQuestion)) {
-                        System.out.println("    → ✓ Found question at Y=" + entry.getKey() + ", highlighting only this line");
-                        
-                        // Add only elements from this Y coordinate
-                        for (TextElement element : elementsAtY) {
-                            if (!Character.isWhitespace(element.character)) {
-                                highlightPositions.add(element.position);
-                            }
+            // For answers, we can be more strict with matching
+            boolean match = normalizedExtracted.contains(normalizedTarget) || 
+                           normalizedTarget.contains(normalizedExtracted) ||
+                           normalizedExtracted.equals(normalizedTarget);
+            
+            System.out.println("      Result: " + (match ? "✅ MATCHED" : "❌ NO MATCH"));
+            return match;
+        }
+
+        /**
+         * Detect column boundary within a specific region
+         */
+        private float detectColumnBoundaryInRegion(List<TextElement> elements) {
+            if (elements.size() < 4) {
+                return Float.MAX_VALUE; // Not enough elements for column detection
+            }
+
+            // Collect X coordinates
+            List<Float> xCoords = elements.stream()
+                .map(e -> e.x)
+                .sorted()
+                .collect(java.util.stream.Collectors.toList());
+
+            // Look for the largest gap in X coordinates
+            float maxGap = 0;
+            float boundary = -1;
+
+            for (int i = 0; i < xCoords.size() - 1; i++) {
+                float gap = xCoords.get(i + 1) - xCoords.get(i);
+                if (gap > maxGap && gap > 30) { // Minimum gap threshold
+                    maxGap = gap;
+                    boundary = xCoords.get(i) + gap / 2;
+                }
+            }
+
+            if (boundary > 0) {
+                System.out.println("  Detected column boundary at X=" + String.format("%.1f", boundary) + 
+                                 " (gap: " + String.format("%.1f", maxGap) + ")");
+                return boundary;
+            }
+
+            // Fallback to median
+            float median = xCoords.get(xCoords.size() / 2);
+            System.out.println("  Using median X coordinate as boundary: " + String.format("%.1f", median));
+            return median;
+        }
+
+        /**
+         * Build text from column elements, preserving word spacing
+         */
+        private String buildColumnText(List<TextElement> elements) {
+            if (elements.isEmpty()) return "";
+
+            // Sort by Y (descending) then by X (ascending) to read naturally
+            elements.sort((a, b) -> {
+                int yCompare = Float.compare(b.y, a.y); // Descending Y
+                if (yCompare != 0) return yCompare;
+                return Float.compare(a.x, b.x); // Ascending X
+            });
+
+            StringBuilder text = new StringBuilder();
+            float lastY = Float.MAX_VALUE;
+            float lastX = -1;
+
+            for (TextElement element : elements) {
+                // Add line break if Y coordinate changed significantly
+                if (Math.abs(element.y - lastY) > 5) {
+                    if (text.length() > 0) {
+                        text.append(" ");
+                    }
+                    lastX = -1; // Reset X tracking for new line
+                }
+                // Add space if there's a significant X gap (word separation)
+                else if (lastX > 0 && element.x - lastX > 5) {
+                    text.append(" ");
+                }
+
+                text.append(element.character);
+                lastY = element.y;
+                lastX = element.x + element.width;
+            }
+
+            return text.toString();
+        }
+
+        /**
+         * Highlight a list of text elements
+         */
+        private void highlightElements(List<TextElement> elements) throws IOException {
+            List<TextPosition> positions = new ArrayList<>();
+            for (TextElement element : elements) {
+                if (!Character.isWhitespace(element.character)) {
+                    positions.add(element.position);
+                }
+            }
+            if (!positions.isEmpty()) {
+                highlightTextPositions(document, pageNum, positions);
+                System.out.println("    Highlighted " + positions.size() + " character positions");
+            }
+        }
+
+        /**
+         * Check if text contains the target question with flexible matching
+         */
+        private boolean containsQuestion(String text, String question) {
+            if (text == null || question == null) return false;
+
+            String normalizedText = normalizeText(text);
+            String normalizedQuestion = normalizeText(question);
+
+            // Direct match
+            if (normalizedText.contains(normalizedQuestion)) {
+                return true;
+            }
+
+            // Word-based partial matching (at least 80% of words match)
+            String[] questionWords = normalizedQuestion.split("\\s+");
+            String[] textWords = normalizedText.split("\\s+");
+
+            if (questionWords.length == 0) return false;
+
+            int matchCount = 0;
+            for (String qWord : questionWords) {
+                if (qWord.length() > 2) { // Skip very short words
+                    for (String tWord : textWords) {
+                        if (tWord.contains(qWord) || qWord.contains(tWord)) {
+                            matchCount++;
+                            break;
                         }
-                        break; // Found the right line, stop looking
-                    }
-                }
-            } else {
-                System.out.println("    → Single Y coordinate detected, highlighting entire line");
-                
-                // Single Y coordinate, safe to highlight all
-                for (TextElement element : lineElements) {
-                    if (!Character.isWhitespace(element.character)) {
-                        highlightPositions.add(element.position);
                     }
                 }
             }
-            
-            System.out.println("    → Selected " + highlightPositions.size() + " characters for highlighting");
-            
-            // Show Y range of selected positions
-            if (!highlightPositions.isEmpty()) {
-                float minY = highlightPositions.stream().map(pos -> pos.getYDirAdj()).min(Float::compare).orElse(0f);
-                float maxY = highlightPositions.stream().map(pos -> pos.getYDirAdj()).max(Float::compare).orElse(0f);
-                System.out.println("    → Highlight Y range: " + String.format("%.2f", minY) + " to " + String.format("%.2f", maxY));
-            }
-            
-            return highlightPositions;
+
+            double matchRatio = (double) matchCount / questionWords.length;
+            return matchRatio >= 0.8;
+        }
+
+        /**
+         * Check if text contains the target answer
+         */
+        private boolean containsAnswer(String text, String answer) {
+            if (text == null || answer == null) return false;
+
+            String normalizedText = normalizeText(text);
+            String normalizedAnswer = normalizeText(answer);
+
+            return normalizedText.contains(normalizedAnswer) || 
+                   normalizedAnswer.contains(normalizedText);
+        }
+
+        /**
+         * Normalize text for matching
+         */
+        private String normalizeText(String text) {
+            return text.toLowerCase()
+                      .trim()
+                      .replaceAll("\\s+", " ")
+                      .replaceAll("[^a-zA-Z0-9\\s]", "");
+        }
+    }
+
+    /**
+     * Represents a separator line in the PDF
+     */
+    private static class SeparatorLine {
+        float y;
+        int gap;
+
+        SeparatorLine(float y, int gap) {
+            this.y = y;
+            this.gap = gap;
+        }
+    }
+
+    /**
+     * Represents a question-answer region between separator lines
+     */
+    private static class QARegion {
+        float topY;
+        float bottomY;
+        List<TextElement> elements;
+
+        QARegion(float topY, float bottomY, List<TextElement> elements) {
+            this.topY = topY;
+            this.bottomY = bottomY;
+            this.elements = elements;
         }
     }
 
@@ -748,3 +1300,4 @@ public class PDFHighlighter {
         return null;
     }
 }
+
