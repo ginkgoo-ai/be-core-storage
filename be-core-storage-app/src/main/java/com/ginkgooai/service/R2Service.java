@@ -458,9 +458,6 @@ public class R2Service implements StorageService {
             if (request.getFileId() == null || request.getFileId().isEmpty()) {
                 throw new IllegalArgumentException("File ID cannot be null or empty");
             }
-            if (request.getHighlightData() == null || request.getHighlightData().isEmpty()) {
-                throw new IllegalArgumentException("Highlight data cannot be null or empty");
-            }
 
             log.info("Processing PDF highlight for file ID: {}", request.getFileId());
 
@@ -473,7 +470,43 @@ public class R2Service implements StorageService {
                 throw new IllegalArgumentException("File is not a PDF. File type: " + cloudFile.getFileType());
             }
 
-            // Download PDF from R2 storage to a temporary file
+            // Check if highlight data is empty - if so, return original file
+            boolean needsHighlighting = request.getHighlightData() != null && !request.getHighlightData().isEmpty();
+
+            if (!needsHighlighting) {
+                // Return original PDF file without highlighting
+                log.info("No highlight data provided, returning original PDF for file ID: {}", request.getFileId());
+                
+                // Set response headers for original PDF
+                response.setContentType("application/pdf");
+                response.setHeader("Content-Disposition", "attachment; filename*=UTF-8''" + 
+                    URLEncoder.encode(cloudFile.getOriginalName(), StandardCharsets.UTF_8));
+
+                // Stream original PDF directly from R2 storage
+                GetObjectRequest getObjectRequest = new GetObjectRequest(bucketName, cloudFile.getStorageName());
+                try (S3Object s3Object = s3Client.getObject(getObjectRequest);
+                     S3ObjectInputStream inputStream = s3Object.getObjectContent()) {
+
+                    // Set Content-Length if available
+                    ObjectMetadata metadata = s3Object.getObjectMetadata();
+                    if (metadata.getContentLength() > 0) {
+                        response.setContentLengthLong(metadata.getContentLength());
+                    }
+
+                    // Stream the original PDF to response
+                    byte[] buffer = new byte[8192];
+                    int bytesRead;
+                    while ((bytesRead = inputStream.read(buffer)) != -1) {
+                        response.getOutputStream().write(buffer, 0, bytesRead);
+                    }
+                    response.getOutputStream().flush();
+                }
+
+                log.info("Successfully returned original PDF for file ID: {}", request.getFileId());
+                return;
+            }
+
+            // Download PDF from R2 storage to a temporary file for highlighting
             Path tempInputFile = Files.createTempFile("pdf_input_", ".pdf");
             Path tempOutputFile = Files.createTempFile("pdf_highlighted_", ".pdf");
 
