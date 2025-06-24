@@ -3,9 +3,8 @@ package com.ginkgooai.service;
 import com.amazonaws.HttpMethod;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.*;
-import com.ginkgooai.core.common.exception.GinkgooRunTimeException;
-import com.ginkgooai.core.common.exception.ResourceNotFoundException;
-import com.ginkgooai.core.common.exception.enums.CustomErrorEnum;
+import com.ginkgooai.exception.GinkgooRunTimeException;
+import com.ginkgooai.exception.CustomErrorEnum;
 import com.ginkgooai.domain.CloudFile;
 import com.ginkgooai.domain.VideoMetadata;
 import com.ginkgooai.dto.CloudFileResponse;
@@ -23,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.util.ObjectUtils;
 import org.springframework.web.multipart.MultipartFile;
 import com.alibaba.fastjson.JSONArray;
 
@@ -134,12 +134,17 @@ public class R2Service implements StorageService {
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
             
             // Set request method
-            connection.setRequestMethod("GET");
+            connection.setRequestMethod(ObjectUtils.isEmpty(saveSeparatelyRequest.getMethod()) ? "POST" : "GET");
             
             // Set cookie if provided
             if (saveSeparatelyRequest.getCookie() != null && !saveSeparatelyRequest.getCookie().isEmpty()) {
                 connection.setRequestProperty("Cookie", saveSeparatelyRequest.getCookie());
                 log.debug("Set cookie header: {}", saveSeparatelyRequest.getCookie());
+            }
+
+            if (saveSeparatelyRequest.getCsrfToken() != null && !saveSeparatelyRequest.getCsrfToken().isEmpty()) {
+                connection.setRequestProperty("CsrfToken", saveSeparatelyRequest.getCsrfToken());
+                log.debug("Set cookie header: {}", saveSeparatelyRequest.getCsrfToken());
             }
             
             // Set common headers to mimic browser request

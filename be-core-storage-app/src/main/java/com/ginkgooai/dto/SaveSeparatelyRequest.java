@@ -13,4 +13,8 @@ public class SaveSeparatelyRequest {
     private String thirdPartUrl;
 
     private String cookie;
+
+    private String method;
+
+    private String csrfToken;
 }
