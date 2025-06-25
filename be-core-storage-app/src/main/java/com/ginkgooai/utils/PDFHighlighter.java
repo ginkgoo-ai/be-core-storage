@@ -130,9 +130,14 @@ public class PDFHighlighter {
         for (int pageNum = 0; pageNum < document.getNumberOfPages(); pageNum++) {
             log.info("Processing page {}", pageNum + 1);
 
-            // Use coordinate-based matching for left-right layout
-            CoordinateBasedMatcher matcher = new CoordinateBasedMatcher();
-            matcher.processPage(document, pageNum, question.trim(), answerToHighlight.trim());
+            try {
+                // Create a new matcher instance for each page to avoid state pollution
+                CoordinateBasedMatcher matcher = new CoordinateBasedMatcher();
+                matcher.processPage(document, pageNum, question.trim(), answerToHighlight.trim());
+            } catch (Exception e) {
+                log.error("Error processing page {}: {}", pageNum + 1, e.getMessage(), e);
+                // Continue processing other pages even if one fails
+            }
         }
     }
 
@@ -560,6 +565,8 @@ public class PDFHighlighter {
         public CoordinateBasedMatcher() throws IOException {
             super();
             setSuppressDuplicateOverlappingText(false);
+            setSortByPosition(true);
+            setAddMoreFormatting(false);
         }
 
         public void processPage(PDDocument doc, int pageNumber, String question, String answer) throws IOException {
@@ -575,7 +582,7 @@ public class PDFHighlighter {
             log.info("Target Question: \"{}\"", targetQuestion);
             log.info("Target Answer: \"{}\"", targetAnswer);
 
-            // Set page range for text extraction
+            // Set page range for text extraction  
             this.setStartPage(pageNumber + 1);
             this.setEndPage(pageNumber + 1);
 
@@ -590,16 +597,34 @@ public class PDFHighlighter {
             } catch (Exception e) {
                 log.error("❌ Error during text extraction: {}", e.getMessage());
                 e.printStackTrace();
+                throw e; // Re-throw to be caught by the caller
             }
 
             log.info("📊 Total text elements collected: {}", allTextElements.size());
 
             if (allTextElements.isEmpty()) {
-                log.warn("❌ === NO TEXT ELEMENTS FOUND ===");
+                log.warn("❌ === NO TEXT ELEMENTS FOUND ON PAGE {} ===", pageNumber + 1);
                 log.warn("This could indicate:");
-                log.warn("  1. PDF contains only images/scanned content");
-                log.warn("  2. Text extraction failed");
-                log.warn("  3. PDF is encrypted or protected");
+                log.warn("  1. PDF contains only images/scanned content on this page");
+                log.warn("  2. Text extraction failed for this page");
+                log.warn("  3. PDF page is encrypted or protected");
+                log.warn("  4. Page {} might not contain text content", pageNumber + 1);
+
+                // Try alternative text extraction approach for debugging
+                try {
+                    log.info("Attempting alternative text extraction...");
+                    PDFTextStripper debugStripper = new PDFTextStripper();
+                    debugStripper.setStartPage(pageNumber + 1);
+                    debugStripper.setEndPage(pageNumber + 1);
+                    String debugText = debugStripper.getText(document);
+                    log.info("Alternative extraction result - Text length: {}", debugText.length());
+                    if (debugText.length() > 0) {
+                        log.info("Alternative extraction - First 200 chars: \"{}\"",
+                                debugText.length() > 200 ? debugText.substring(0, 200) + "..." : debugText);
+                    }
+                } catch (Exception e) {
+                    log.error("Alternative text extraction also failed: {}", e.getMessage());
+                }
                 return;
             }
 
@@ -805,7 +830,7 @@ public class PDFHighlighter {
 
             boolean foundMatch = false;
 
-            // Try to find matches in each Q&A region
+            // Try to find matches in each Q&A region - don't break on first match, check all regions
             for (int i = 0; i < qaRegions.size(); i++) {
                 QARegion region = qaRegions.get(i);
                 log.info("\n📍 === Analyzing Q&A Region {}/{} ===", i + 1, qaRegions.size());
@@ -820,7 +845,7 @@ public class PDFHighlighter {
                 if (tryRegionBasedMatching(region)) {
                     foundMatch = true;
                     log.info("✅ Found match in region {}", i + 1);
-                    break; // Found match, stop searching
+                    // Continue to check other regions for more matches - don't break!
                 } else {
                     log.info("❌ No match found in region {}", i + 1);
                 }
@@ -901,16 +926,32 @@ public class PDFHighlighter {
             // Step 4: Try combinations of 1-6 consecutive lines for matching
             System.out.println("    🎯 === TRYING LINE COMBINATIONS (1-6 lines) ===");
 
+            boolean foundAnyMatch = false;
+            Set<Integer> alreadyHighlightedLines = new HashSet<>();
+            
             for (int startLine = 0; startLine < lineQAs.size(); startLine++) {
+                // Skip if this line was already part of a highlighted match
+                if (alreadyHighlightedLines.contains(startLine)) {
+                    continue;
+                }
+                
                 for (int lineCount = 1; lineCount <= Math.min(6, lineQAs.size() - startLine); lineCount++) {
                     if (tryLineCombination(lineQAs, startLine, lineCount)) {
-                        return true; // Found match!
+                        foundAnyMatch = true;
+                        // Mark these lines as highlighted to avoid overlap
+                        for (int i = startLine; i < startLine + lineCount; i++) {
+                            alreadyHighlightedLines.add(i);
+                        }
+                        // Don't break - but skip checking overlapping combinations for this starting line
+                        break;
                     }
                 }
             }
 
-            System.out.println("    ❌ === NO MATCH FOUND IN ANY LINE COMBINATION ===");
-            return false;
+            if (!foundAnyMatch) {
+                System.out.println("    ❌ === NO MATCH FOUND IN ANY LINE COMBINATION ===");
+            }
+            return foundAnyMatch;
         }
 
         /**
@@ -968,11 +1009,18 @@ public class PDFHighlighter {
                 return true;
             } else if (questionMatch) {
                 System.out.println("        ⚠️ === PARTIAL MATCH (Question Only) ===");
-                System.out.println("        Highlighting " + allQuestionElements.size() + " question characters");
+                System.out.println("        Question matched but answer didn't. Checking if we should still highlight...");
 
-                // Highlight question only
-                highlightElements(allQuestionElements);
-                return true;
+                // Only highlight question if answer text is too different or empty
+                if (finalAnswerText.trim().isEmpty()) {
+                    System.out.println("        Answer text is empty, highlighting question only");
+                    highlightElements(allQuestionElements);
+                    return true;
+                } else {
+                    System.out.println("        Answer text exists but doesn't match. Skipping to find better match.");
+                    System.out.println("        Answer text was: \"" + finalAnswerText + "\"");
+                    return false; // Don't highlight partial matches when answer exists but doesn't match
+                }
             }
 
             return false;
@@ -1129,11 +1177,44 @@ public class PDFHighlighter {
             System.out.println("      Normalized extracted: \"" + normalizedExtracted + "\"");
             System.out.println("      Normalized target: \"" + normalizedTarget + "\"");
 
-            // For answers, we can be more strict with matching
-            boolean match = normalizedExtracted.contains(normalizedTarget) ||
+            // Strategy 1: Direct matching
+            if (normalizedExtracted.contains(normalizedTarget) ||
                     normalizedTarget.contains(normalizedExtracted) ||
-                    normalizedExtracted.equals(normalizedTarget);
+                    normalizedExtracted.equals(normalizedTarget)) {
+                System.out.println("      ✅ Direct match found!");
+                return true;
+            }
 
+            // Strategy 2: Word-based matching for answers (similar to questions)
+            String[] targetWords = normalizedTarget.split("\\s+");
+            String[] extractedWords = normalizedExtracted.split("\\s+");
+
+            if (targetWords.length == 0) {
+                System.out.println("      ❌ No target words to match");
+                return false;
+            }
+
+            int matchedWords = 0;
+            System.out.println("      📝 Answer word-by-word analysis:");
+
+            for (String targetWord : targetWords) {
+                if (targetWord.length() <= 1) continue; // Skip very short words
+
+                boolean wordFound = false;
+                for (String extractedWord : extractedWords) {
+                    if (extractedWord.contains(targetWord) || targetWord.contains(extractedWord)) {
+                        wordFound = true;
+                        matchedWords++;
+                        break;
+                    }
+                }
+                System.out.println("        \"" + targetWord + "\" -> " + (wordFound ? "✅" : "❌"));
+            }
+
+            double matchRatio = (double) matchedWords / targetWords.length;
+            System.out.println("      📊 Answer match ratio: " + String.format("%.2f", matchRatio) + " (threshold: 0.6)");
+
+            boolean match = matchRatio >= 0.6; // More lenient threshold for answers
             System.out.println("      Result: " + (match ? "✅ MATCHED" : "❌ NO MATCH"));
             return match;
         }
@@ -1143,22 +1224,27 @@ public class PDFHighlighter {
          */
         private float detectColumnBoundaryInRegion(List<TextElement> elements) {
             if (elements.size() < 4) {
-                return Float.MAX_VALUE; // Not enough elements for column detection
+                System.out.println("  Not enough elements for column detection, using default boundary");
+                return 300; // Default boundary for small regions
             }
 
-            // Collect X coordinates
-            List<Float> xCoords = elements.stream()
-                    .map(e -> e.x)
-                    .sorted()
-                    .collect(java.util.stream.Collectors.toList());
+            // Collect X coordinates and remove duplicates
+            Set<Float> uniqueXCoords = new TreeSet<>();
+            for (TextElement element : elements) {
+                uniqueXCoords.add(element.x);
+            }
 
-            // Look for the largest gap in X coordinates
+            List<Float> xCoords = new ArrayList<>(uniqueXCoords);
+            System.out.println("  Found " + xCoords.size() + " unique X coordinates: " +
+                    xCoords.subList(0, Math.min(10, xCoords.size())));
+
+            // Look for the largest gap in X coordinates  
             float maxGap = 0;
             float boundary = -1;
 
             for (int i = 0; i < xCoords.size() - 1; i++) {
                 float gap = xCoords.get(i + 1) - xCoords.get(i);
-                if (gap > maxGap && gap > 30) { // Minimum gap threshold
+                if (gap > maxGap && gap > 20) { // Reduced threshold for better detection
                     maxGap = gap;
                     boundary = xCoords.get(i) + gap / 2;
                 }
@@ -1170,10 +1256,14 @@ public class PDFHighlighter {
                 return boundary;
             }
 
-            // Fallback to median
-            float median = xCoords.get(xCoords.size() / 2);
-            System.out.println("  Using median X coordinate as boundary: " + String.format("%.1f", median));
-            return median;
+            // Improved fallback: use page center if no clear gap found
+            float minX = xCoords.get(0);
+            float maxX = xCoords.get(xCoords.size() - 1);
+            float centerBoundary = minX + (maxX - minX) * 0.5f; // Use 50% of page width
+
+            System.out.println("  No clear column gap found. Using center boundary: " + String.format("%.1f", centerBoundary));
+            System.out.println("  X range: " + String.format("%.1f", minX) + " to " + String.format("%.1f", maxX));
+            return centerBoundary;
         }
 
         /**
