@@ -109,6 +109,25 @@ public class StorageController {
         return ResponseEntity.ok(storageService.generatePresignedUrl(fileName));
     }
 
+	/**
+	 * Generates a pre-signed URL for the specified file by its ID.
+	 * @param fileId The ID of the file for which to generate the pre-signed URL.
+	 * @return A pre-signed URL that can be used to access the file.
+	 * @throws FileNotFoundException if the file is not found.
+	 */
+	@Operation(summary = "Generate pre-signed URL by file ID",
+			description = "Generate a time-limited pre-signed URL for temporary access to private files using file ID",
+			responses = {
+					@ApiResponse(responseCode = "200", description = "Successfully generated pre-signed URL",
+							content = @Content(schema = @Schema(implementation = URL.class))),
+					@ApiResponse(responseCode = "404", description = "File not found with the provided ID") })
+	@GetMapping("/{fileId}/presigned-url-by-id")
+	public ResponseEntity<URL> generatePresignedUrlByFileId(@Parameter(description = "File ID (unique identifier)",
+			required = true, example = "123e4567-e89b-12d3-a456-426614174000",
+			schema = @Schema(type = "string")) @PathVariable String fileId) throws FileNotFoundException {
+		return ResponseEntity.ok(storageService.generatePresignedUrlByFileId(fileId));
+	}
+
     /**
      * Generates a pre-signed URL for the specified file by its original URL.
      *

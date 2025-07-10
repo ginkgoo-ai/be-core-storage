@@ -29,6 +29,9 @@ public interface StorageApi {
     @GetMapping("/files/{fileName}/presigned-url")
     ResponseEntity<URL> generatePresignedUrl(@PathVariable String fileName);
 
+	@GetMapping("/files/fileId}/presigned-url-by-id")
+	ResponseEntity<URL> generatePresignedUrlByFileId(@PathVariable String fileId) throws FileNotFoundException;
+
     @PostMapping("/files/presigned-url")
     ResponseEntity<URL> generatePresignedUrlByOriginalUrl(@RequestBody PresignedUrlRequest request);
 

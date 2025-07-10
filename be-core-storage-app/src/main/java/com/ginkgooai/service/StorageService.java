@@ -3,8 +3,8 @@ package com.ginkgooai.service;
 import com.ginkgooai.domain.CloudFile;
 import com.ginkgooai.dto.CloudFileResponse;
 import com.ginkgooai.dto.CloudFilesResponse;
-import com.ginkgooai.dto.SaveSeparatelyRequest;
 import com.ginkgooai.dto.PDFHighlightRequest;
+import com.ginkgooai.dto.SaveSeparatelyRequest;
 import com.ginkgooai.model.request.PresignedUrlRequest;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -50,6 +50,14 @@ public interface StorageService {
     String generateSignedUrl(String fileId) throws FileNotFoundException, URISyntaxException;
 
     URL generatePresignedUrlByOrigninalUrl(PresignedUrlRequest request);
+
+	/**
+	 * Generate presigned URL by file ID
+	 * @param fileId The file ID to generate presigned URL for
+	 * @return Presigned URL for the file
+	 * @throws FileNotFoundException if the file is not found
+	 */
+	URL generatePresignedUrlByFileId(String fileId) throws FileNotFoundException;
 
     void downloadFile(String originUrl, OutputStream out) throws FileNotFoundException;
 

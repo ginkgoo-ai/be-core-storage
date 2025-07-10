@@ -290,6 +290,28 @@ public class R2Service implements StorageService {
                     .withExpiration(expiration);
             return s3Client.generatePresignedUrl(generatePresignedUrlRequest);
         } catch (Exception e) {
+			throw new GinkgooRunTimeException(CustomErrorEnum.OBTAINING_DOWNLOAD_LINK_EXCEPTION);
+		}
+	}
+
+	@Override
+	public URL generatePresignedUrlByFileId(String fileId) throws FileNotFoundException {
+		try {
+			CloudFile file = cloudFileRepository.findById(fileId)
+				.orElseThrow(() -> new FileNotFoundException("File not found with ID: " + fileId));
+
+			Date expiration = new Date(System.currentTimeMillis() + Long.parseLong(expirationTime));
+			GeneratePresignedUrlRequest request = new GeneratePresignedUrlRequest(bucketName, file.getStorageName())
+				.withMethod(HttpMethod.GET)
+				.withExpiration(expiration);
+			return s3Client.generatePresignedUrl(request);
+		}
+		catch (FileNotFoundException e) {
+			log.error("File not found with ID: {}", fileId, e);
+			throw e;
+		}
+		catch (Exception e) {
+			log.error("Error generating presigned URL for file ID: {}", fileId, e);
             throw new GinkgooRunTimeException(CustomErrorEnum.OBTAINING_DOWNLOAD_LINK_EXCEPTION);
         }
     }
