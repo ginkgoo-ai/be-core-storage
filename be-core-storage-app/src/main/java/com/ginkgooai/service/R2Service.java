@@ -129,7 +129,7 @@ public class R2Service implements StorageService {
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
             
             // Set request method
-            connection.setRequestMethod(ObjectUtils.isEmpty(saveSeparatelyRequest.getMethod()) ? "POST" : "GET");
+            connection.setRequestMethod(ObjectUtils.isEmpty(saveSeparatelyRequest.getMethod()) ? "GET" : saveSeparatelyRequest.getMethod());
             
             // Set cookie if provided
             if (saveSeparatelyRequest.getCookie() != null && !saveSeparatelyRequest.getCookie().isEmpty()) {
